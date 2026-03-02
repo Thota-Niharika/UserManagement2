@@ -139,9 +139,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-
-  // Required for GitHub Pages: assets are served from /<repo-name>/
-  base: '/UserMngmt/',
+  base: '/UserManagement/',
 
   server: {
     host: true,
