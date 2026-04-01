@@ -1,7 +1,0 @@
-.env
-src/components/pages/Employees/EmployeeList.jsx
-src/components/pages/Employees/ViewEmployeeModal.jsx
-src/components/pages/Forms/EmployeeOnboardingForm.jsx
-src/config/api.js
-src/services/api.js
-src/utils/normalizeEmployee.js

@@ -16,7 +16,7 @@ import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import apiService from "../../../services/api";
-import { normalizeEmployee } from '../../../utils/normalizeEmployee';
+import { normalizeEmployee, scavengeValue, scavengePath, findProof } from '../../../utils/normalizeEmployee';
 
 const EmployeeOnboardingForm = () => {
 
@@ -53,116 +53,165 @@ const EmployeeOnboardingForm = () => {
         }
     };
 
-    const mapEmployeeToForm = (emp) => {
-        if (!emp) return;
+    const mapEmployeeToForm = (rawEmp) => {
+        if (!rawEmp) return;
 
-        // --- [MANDATE 2] STRICT LITERAL MAPPING ONLY ---
+        console.log("🚀 [DEBUG] Starting Deep Onboarding Mapping...");
+        
+        // Auto-Pivot: If the response is wrapped (common in some backend versions)
+        let emp = rawEmp;
+        if (!emp.fullName && !emp.name && (emp.employee || emp.data || emp.onboarding)) {
+            emp = emp.employee || emp.data || emp.onboarding;
+            console.log("🔄 [DEBUG] Auto-Pivoted to nested data object.");
+        }
+
+        // --- [MANDATE 2] DEEP SCAVENGING MAPPING ---
         setPersonal({
-            fullName: emp.fullName || '',
-            phone: emp.phoneNumber || '',
-            bloodGroup: emp.bloodGroup || '',
-            email: emp.email || '',
-            permAddress: emp.permanentAddress || '',
-            presAddress: emp.presentAddress || '',
-            fatherName: emp.fathersName || '',
-            fatherPhone: emp.fathersPhone || '',
-            motherName: emp.mothersName || '',
-            motherPhone: emp.mothersPhone || '',
-            emergencyName: emp.emergencyContactName || '',
-            emergencyRel: emp.emergencyRelationship || '',
-            emergencyPhone: emp.emergencyNumber || '',
-            dateOfBirth: emp.dateOfBirth ? (Array.isArray(emp.dateOfBirth) ? formatDate(emp.dateOfBirth) : emp.dateOfBirth.split('T')[0]) : '',
+            fullName: scavengeValue(emp, 'fullName', 'name', 'personal.fullName', 'employee.fullName', 'personalDetails.fullName') || '',
+            phone: scavengeValue(emp, 'phone', 'phoneNumber', 'personal.phoneNumber', 'employee.phone', 'personalDetails.phoneNumber') || '',
+            bloodGroup: scavengeValue(emp, 'bloodGroup', 'personal.bloodGroup', 'employee.bloodGroup', 'personalDetails.bloodGroup') || '',
+            email: scavengeValue(emp, 'email', 'personal.email', 'employee.email', 'personalDetails.email') || '',
+            permAddress: scavengeValue(emp, 'permanentAddress', 'permAddress', 'personal.permanentAddress', 'employee.permanentAddress') || '',
+            presAddress: scavengeValue(emp, 'presentAddress', 'presAddress', 'personal.presentAddress', 'employee.presentAddress') || '',
+            fatherName: scavengeValue(emp, 'fathersName', 'fatherName', 'personal.fathersName', 'employee.fathersName') || '',
+            fatherPhone: scavengeValue(emp, 'fathersPhone', 'fatherPhone', 'personal.fathersPhone', 'employee.fathersPhone') || '',
+            motherName: scavengeValue(emp, 'mothersName', 'motherName', 'personal.mothersName', 'employee.mothersName') || '',
+            motherPhone: scavengeValue(emp, 'mothersPhone', 'motherPhone', 'personal.mothersPhone', 'employee.mothersPhone') || '',
+            emergencyName: scavengeValue(emp, 'emergencyContactName', 'emergencyName', 'personal.emergencyContactName', 'employee.emergencyContactName') || '',
+            emergencyRel: scavengeValue(emp, 'emergencyRelationship', 'emergencyRel', 'personal.emergencyRelationship', 'employee.emergencyRelationship') || '',
+            emergencyPhone: scavengeValue(emp, 'emergencyNumber', 'emergencyPhone', 'personal.emergencyNumber', 'employee.emergencyNumber') || '',
+            dateOfBirth: scavengeValue(emp, 'dateOfBirth', 'dob', 'personal.dateOfBirth', 'employee.dateOfBirth')
+                ? (Array.isArray(scavengeValue(emp, 'dateOfBirth', 'dob', 'personal.dateOfBirth', 'employee.dateOfBirth')) 
+                    ? formatDate(scavengeValue(emp, 'dateOfBirth', 'dob', 'personal.dateOfBirth', 'employee.dateOfBirth')) 
+                    : String(scavengeValue(emp, 'dateOfBirth', 'dob', 'personal.dateOfBirth', 'employee.dateOfBirth')).split('T')[0]) 
+                : '',
         });
 
         const mapEdu = (edu) => {
             if (!edu) return { school: '', htNumber: '', year: '', percentage: '', certificate: null };
-
             return {
                 id: edu.id || null,
-                school: edu.institutionName || '',
-                htNumber: edu.hallTicketNo || '',
-                year: edu.passoutYear || '',
-                percentage: edu.percentageCgpa || '',
-                certificate: edu.certificatePath ? { name: edu.certificatePath.split('/').pop(), isServerFile: true, path: edu.certificatePath } : null,
-                marksMemo: edu.marksMemoPath ? { name: edu.marksMemoPath.split('/').pop(), isServerFile: true, path: edu.marksMemoPath } : null,
+                school: edu.institutionName || edu.school || '',
+                htNumber: edu.hallTicketNo || edu.htNumber || '',
+                year: edu.passoutYear || edu.year || '',
+                percentage: edu.percentageCgpa || edu.percentage || '',
+                certificate: scavengePath(edu, 'certificatePath', 'certificate') ? { 
+                    name: scavengePath(edu, 'certificatePath', 'certificate').split('/').pop(), 
+                    isServerFile: true, 
+                    path: scavengePath(edu, 'certificatePath', 'certificate') 
+                } : null,
+                marksMemo: scavengePath(edu, 'marksMemoPath', 'marksMemo') ? { 
+                    name: scavengePath(edu, 'marksMemoPath', 'marksMemo').split('/').pop(), 
+                    isServerFile: true, 
+                    path: scavengePath(edu, 'marksMemoPath', 'marksMemo') 
+                } : null,
             };
         };
 
         const eduState = {
-            ssc: mapEdu(emp.ssc),
-            inter: mapEdu(emp.intermediate),
-            grad: mapEdu(emp.graduation),
-            postGrad: (emp.postGraduations || []).map(pg => mapEdu(pg)),
-            otherCerts: (emp.otherCertificates || []).map(cert => ({
+            ssc: mapEdu(scavengeValue(emp, 'ssc', 'education.ssc', 'employee.ssc')),
+            inter: mapEdu(scavengeValue(emp, 'intermediate', 'education.intermediate', 'employee.intermediate')),
+            grad: mapEdu(scavengeValue(emp, 'graduation', 'education.graduation', 'employee.graduation')),
+            postGrad: (scavengeValue(emp, 'postGraduations', 'education.postGraduations', 'employee.postGraduations') || []).map(pg => mapEdu(pg)),
+            otherCerts: (scavengeValue(emp, 'otherCertificates', 'education.otherCertificates', 'employee.otherCertificates') || []).map(cert => ({
                 id: cert.id || null,
-                institute: cert.instituteName || '',
-                certNumber: cert.certificateNumber || '',
-                certificate: cert.certificatePath ? {
-                    name: cert.certificatePath.split('/').pop(),
+                institute: cert.instituteName || cert.institute || '',
+                certNumber: cert.certificateNumber || cert.certNumber || '',
+                certificate: scavengePath(cert, 'certificatePath', 'certificate') ? {
+                    name: scavengePath(cert, 'certificatePath', 'certificate').split('/').pop(),
                     isServerFile: true,
-                    path: cert.certificatePath
+                    path: scavengePath(cert, 'certificatePath', 'certificate')
                 } : null,
             })),
         };
         setEducation(eduState);
 
+        const intList = scavengeValue(emp, 'internships', 'internshipDetails', 'employee.internships') || [];
+        const workList = scavengeValue(emp, 'workExperiences', 'workHistory', 'employee.workExperiences') || [];
+        
         setExperience({
-            internships: (emp.internships || []).map(int => ({
-                company: int.companyName || '',
-                joining: int.joiningDate || '',
-                relieving: int.relievingDate || '',
-                id: int.internshipId || '',
+            internships: intList.map(int => ({
+                company: int.companyName || int.company || '',
+                joining: int.joiningDate || int.joining || '',
+                relieving: int.relievingDate || int.relieving || '',
+                id: int.internshipId || int.id || '',
                 duration: int.duration || '',
-                offerLetter: int.offerLetterPath ? { name: int.offerLetterPath.split('/').pop(), isServerFile: true, path: int.offerLetterPath } : null,
-                relievingLetter: int.experienceCertificatePath ? { name: int.experienceCertificatePath.split('/').pop(), isServerFile: true, path: int.experienceCertificatePath } : null,
+                offerLetter: scavengePath(int, 'offerLetterPath', 'offerLetter') ? { 
+                    name: scavengePath(int, 'offerLetterPath', 'offerLetter').split('/').pop(), 
+                    isServerFile: true, 
+                    path: scavengePath(int, 'offerLetterPath', 'offerLetter') 
+                } : null,
+                relievingLetter: scavengePath(int, 'experienceCertificatePath', 'relievingLetter', 'certificate', 'experienceCert') ? { 
+                    name: scavengePath(int, 'experienceCertificatePath', 'relievingLetter', 'certificate', 'experienceCert').split('/').pop(), 
+                    isServerFile: true, 
+                    path: scavengePath(int, 'experienceCertificatePath', 'relievingLetter', 'certificate', 'experienceCert') 
+                } : null,
             })),
-            workHistory: (emp.workExperiences || []).map(work => ({
-                company: work.companyName || '',
-                years: work.yearsOfExp || '',
-                offerLetter: work.offerLetterPath ? { name: work.offerLetterPath.split('/').pop(), isServerFile: true, path: work.offerLetterPath } : null,
-                relievingLetter: work.relievingLetterPath ? { name: work.relievingLetterPath.split('/').pop(), isServerFile: true, path: work.relievingLetterPath } : null,
-                payslips: work.payslipsPath ? { name: work.payslipsPath.split('/').pop(), isServerFile: true, path: work.payslipsPath } : null,
-                experienceCert: work.experienceCertificatePath ? { name: work.experienceCertificatePath.split('/').pop(), isServerFile: true, path: work.experienceCertificatePath } : null,
+            workHistory: workList.map(work => ({
+                company: work.companyName || work.company || '',
+                years: work.yearsOfExp || work.years || '',
+                offerLetter: scavengePath(work, 'offerLetterPath', 'offerLetter') ? { 
+                    name: scavengePath(work, 'offerLetterPath', 'offerLetter').split('/').pop(), 
+                    isServerFile: true, 
+                    path: scavengePath(work, 'offerLetterPath', 'offerLetter') 
+                } : null,
+                relievingLetter: scavengePath(work, 'relievingLetterPath', 'relievingLetter') ? { 
+                    name: scavengePath(work, 'relievingLetterPath', 'relievingLetter').split('/').pop(), 
+                    isServerFile: true, 
+                    path: scavengePath(work, 'relievingLetterPath', 'relievingLetter') 
+                } : null,
+                payslips: scavengePath(work, 'payslipsPath', 'payslips') ? { 
+                    name: scavengePath(work, 'payslipsPath', 'payslips').split('/').pop(), 
+                    isServerFile: true, 
+                    path: scavengePath(work, 'payslipsPath', 'payslips') 
+                } : null,
+                experienceCert: scavengePath(work, 'experienceCertificatePath', 'experienceCert') ? { 
+                    name: scavengePath(work, 'experienceCertificatePath', 'experienceCert').split('/').pop(), 
+                    isServerFile: true, 
+                    path: scavengePath(work, 'experienceCertificatePath', 'experienceCert') 
+                } : null,
             }))
         });
 
-        const bankDetails = emp.bankDetails || {};
+        const bankRecord = scavengeValue(emp, 'bankDetails', 'bank', 'employee.bankDetails');
+        const bankDoc = scavengePath(emp, 'bankDetails.documentFilePath', 'employee.bankDetails.documentFilePath', 'bank.documentFilePath', 'bankDocumentPath', 'passbookPath');
+        
         setBank({
-            id: bankDetails.id || null,
-            bankName: bankDetails.bankName || '',
-            branchName: bankDetails.branchName || '',
-            accountNumber: bankDetails.accountNumber || '',
-            ifscCode: bankDetails.ifscCode || '',
-            upiId: bankDetails.upiId || '',
-            documentType: bankDetails.documentType || 'PASSBOOK',
-            bankDocumentPath: bankDetails.documentFilePath || '',
-            docImage: bankDetails.documentFilePath ? { name: bankDetails.documentFilePath.split('/').pop(), isServerFile: true, path: bankDetails.documentFilePath } : null,
-            employeeFormId: emp.employeeId || emp.id || null
+            id: bankRecord?.id || null,
+            bankName: scavengeValue(emp, 'bankDetails.bankName', 'employee.bankDetails.bankName', 'bank.bankName', 'bankName') || '',
+            branchName: scavengeValue(emp, 'bankDetails.branchName', 'employee.bankDetails.branchName', 'bank.branchName', 'branchName') || '',
+            accountNumber: scavengeValue(emp, 'bankDetails.accountNumber', 'employee.bankDetails.accountNumber', 'bank.accountNumber', 'accountNumber') || '',
+            ifscCode: scavengeValue(emp, 'bankDetails.ifscCode', 'employee.bankDetails.ifscCode', 'bank.ifscCode', 'ifscCode') || '',
+            upiId: scavengeValue(emp, 'bankDetails.upiId', 'employee.bankDetails.upiId', 'bank.upiId', 'upiId') || '',
+            documentType: bankRecord?.documentType || 'PASSBOOK',
+            bankDocumentPath: bankDoc || '',
+            docImage: bankDoc ? { name: bankDoc.split('/').pop(), isServerFile: true, path: bankDoc } : null,
+            employeeFormId: scavengeValue(emp, 'employeeId', 'id', 'employee.id') || null
         });
 
-        // Map Documents strictly from identityProofs or direct fields
-        const getProofValue = (type) => {
-            if (!emp.identityProofs) return {};
-            return emp.identityProofs.find(p => (p.proofType || p.type) === type) || {};
-        };
+        // Identity Discovery (Search Root, employee, panProof, or identityProofs array)
+        const proofs = scavengeValue(emp, 'identityProofs', 'employee.identityProofs') || [];
+        const panNumber = scavengeValue(emp, 'panNumber', 'panProof.panNumber', 'employee.panNumber', 'identityProof.panNumber') || findProof(proofs, 'PAN')?.panNumber || '';
+        const aadharNumber = scavengeValue(emp, 'aadharNumber', 'aadhaarNumber', 'panProof.aadhaarNumber', 'employee.aadhaarNumber', 'identityProof.aadhaarNumber') || findProof(proofs, 'AADHAR')?.aadhaarNumber || '';
 
-        const pan = getProofValue('PAN');
-        const aadhar = getProofValue('AADHAR');
-        const photo = getProofValue('PHOTO');
-        const passport = getProofValue('PASSPORT');
-        const voter = getProofValue('VOTER');
+        const panPath = scavengePath(emp, 'panPath', 'panProof.panFilePath', 'employee.panPath', 'identityProof.panFilePath') || findProof(proofs, 'PAN')?.filePath;
+        const aadharPath = scavengePath(emp, 'aadharPath', 'aadhaarPath', 'panProof.aadhaarFilePath', 'employee.aadharPath', 'identityProof.aadhaarFilePath') || findProof(proofs, 'AADHAR')?.filePath;
+        const photoPath = scavengePath(emp, 'photoPath', 'panProof.photoFilePath', 'personal.photoPath', 'employee.photoPath') || findProof(proofs, 'PHOTO')?.filePath;
+        const passportPath = scavengePath(emp, 'passportPath', 'panProof.passportFilePath', 'employee.passportPath') || findProof(proofs, 'PASSPORT')?.filePath;
+        const voterPath = scavengePath(emp, 'voterPath', 'panProof.voterIdFilePath', 'employee.voterPath') || findProof(proofs, 'VOTER')?.filePath;
 
-        const docState = {
+        setDocuments({
             id: emp.id || null,
-            panNumber: pan.documentNumber || '',
-            panCard: pan.filePath ? { name: pan.filePath.split('/').pop(), isServerFile: true, path: pan.filePath } : null,
-            aadharNumber: aadhar.documentNumber || '',
-            aadharCard: aadhar.filePath ? { name: aadhar.filePath.split('/').pop(), isServerFile: true, path: aadhar.filePath } : null,
-            passportPhoto: photo.filePath ? { name: photo.filePath.split('/').pop(), isServerFile: true, path: photo.filePath } : null,
-            passportDoc: passport.filePath ? { name: passport.filePath.split('/').pop(), isServerFile: true, path: passport.filePath } : null,
-            voterId: voter.filePath ? { name: voter.filePath.split('/').pop(), isServerFile: true, path: voter.filePath } : null,
-        };
-        setDocuments(docState);
+            panNumber: panNumber,
+            panCard: panPath ? { name: panPath.split('/').pop(), isServerFile: true, path: panPath } : null,
+            aadharNumber: aadharNumber,
+            aadharCard: aadharPath ? { name: aadharPath.split('/').pop(), isServerFile: true, path: aadharPath } : null,
+            passportPhoto: photoPath ? { name: photoPath.split('/').pop(), isServerFile: true, path: photoPath } : null,
+            passportDoc: passportPath ? { name: passportPath.split('/').pop(), isServerFile: true, path: passportPath } : null,
+            voterId: voterPath ? { name: voterPath.split('/').pop(), isServerFile: true, path: voterPath } : null,
+        });
+
+        console.log("✅ [DEBUG] Deep Onboarding Mapping Complete.");
     };
 
     const formatDate = (arr) => {

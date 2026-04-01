@@ -48,7 +48,18 @@ export const safeGet = async (url) => {
 };
 
 /**
- * Core POST handler. Returns null on failure instead of throwing.
+ * Helper to extract a readable error message from Axios errors.
+ */
+const getErrorMessage = (err) => {
+  const backendData = err.response?.data;
+  if (backendData && typeof backendData === 'object') {
+    return backendData.message || backendData.error || JSON.stringify(backendData);
+  }
+  return err.message || "Unknown API Error";
+};
+
+/**
+ * Core POST handler.
  */
 export const safePost = async (url, payload) => {
   try {
@@ -59,8 +70,9 @@ export const safePost = async (url, payload) => {
     const parsed = parseIfString(res.data);
     return parsed?.data ?? parsed;
   } catch (err) {
-    console.error(`❌ [API POST FAILED] ${url}:`, err.response?.data || err.message);
-    return null;
+    const msg = getErrorMessage(err);
+    console.error(`❌ [API POST FAILED] ${url}:`, msg);
+    throw new Error(msg);
   }
 };
 
@@ -73,8 +85,9 @@ export const safePut = async (url, payload) => {
     const parsed = parseIfString(res.data);
     return parsed?.data ?? parsed;
   } catch (err) {
-    console.error(`❌ [API PUT FAILED] ${url}:`, err.response?.data || err.message);
-    return null;
+    const msg = getErrorMessage(err);
+    console.error(`❌ [API PUT FAILED] ${url}:`, msg);
+    throw new Error(msg);
   }
 };
 
@@ -86,8 +99,9 @@ export const safeDelete = async (url) => {
     await api.delete(url);
     return true;
   } catch (err) {
-    console.error(`❌ [API DELETE FAILED] ${url}:`, err.response?.data || err.message);
-    return false;
+    const msg = getErrorMessage(err);
+    console.error(`❌ [API DELETE FAILED] ${url}:`, msg);
+    throw new Error(msg);
   }
 };
 
@@ -100,8 +114,9 @@ export const safePatch = async (url, payload) => {
     const parsed = parseIfString(res.data);
     return parsed?.data ?? parsed;
   } catch (err) {
-    console.error(`❌ [API PATCH FAILED] ${url}:`, err.response?.data || err.message);
-    return null;
+    const msg = getErrorMessage(err);
+    console.error(`❌ [API PATCH FAILED] ${url}:`, msg);
+    throw new Error(msg);
   }
 };
 
@@ -145,7 +160,7 @@ const ApiService = {
   deleteEntity: (id) => safeDelete(`/entities/${id}`),
 
   // --- EMPLOYEES (Normalized) ---
-  getEmployees: async (page = 0, size = 50) => {
+  getEmployees: async (page = 0, size = 10) => {
     const raw = await safeGet(`/employees?page=${page}&size=${size}`);
     return normalizeEmployeeList(raw);
   },
@@ -154,33 +169,38 @@ const ApiService = {
     return normalizeEmployee(raw);
   },
   createEmployee: async (formData) => {
-    const raw = await safePost('/employees/employees', {
+    // 🛡️ SANITIZATION: Empty strings for dates cause 500s in Spring Boot
+    const payload = {
       fullName: formData.name,
       dept: formData.department,
-      entity: formData.entity,
       role: formData.role,
-      dateOfOnboarding: formData.dateOfOnboarding,
-      dateOfInterview: formData.dateOfInterview,
-      dateOfBirth: formData.dateOfBirth,
+      entity: formData.entity,
+      dateOfOnboarding: formData.dateOfOnboarding || null,
+      dateOfInterview: formData.dateOfInterview || null,
+      dateOfBirth: formData.dateOfBirth || null,
       email: formData.email,
       phone: formData.phone,
       status: formData.status || 'ONBOARDING'
-    });
+    };
+    console.log('📤 [createEmployee] Sending payload:', JSON.stringify(payload, null, 2));
+    const raw = await safePost('/employees/employees', payload);
     return normalizeEmployee(raw);
   },
   updateEmployee: async (id, formData) => {
-    const raw = await safePut(`/employees/${id}`, {
+    // 🛡️ SANITIZATION: Empty strings for dates cause 500s in Spring Boot
+    const payload = {
       fullName: formData.name,
       dept: formData.department,
       entity: formData.entity,
       role: formData.role,
-      dateOfOnboarding: formData.dateOfOnboarding,
-      dateOfInterview: formData.dateOfInterview,
-      dateOfBirth: formData.dateOfBirth,
+      dateOfOnboarding: formData.dateOfOnboarding || null,
+      dateOfInterview: formData.dateOfInterview || null,
+      dateOfBirth: formData.dateOfBirth || null,
       email: formData.email,
       phone: formData.phone,
       status: formData.status || 'Active'
-    });
+    };
+    const raw = await safePut(`/employees/${id}`, payload);
     return normalizeEmployee(raw);
   },
   deleteEmployee: (id) => safeDelete(`/employees/${id}`),
@@ -191,6 +211,20 @@ const ApiService = {
   submitOnboarding: (data, token) => {
     const endpoint = token ? `/onboarding/submit?token=${encodeURIComponent(token)}` : '/onboarding/submit';
     return safePost(endpoint, data);
+  },
+  submitWithDto: async (url, dto, files) => {
+    const formData = new FormData();
+    formData.append('data', new Blob([JSON.stringify(dto)], { type: 'application/json' }));
+    
+    if (files) {
+      Object.keys(files).forEach(key => {
+        if (files[key]) {
+          formData.append(key, files[key]);
+        }
+      });
+    }
+    
+    return safePost(url, formData);
   },
   getOnboardingByToken: (token) => {
     if (!token) return null;

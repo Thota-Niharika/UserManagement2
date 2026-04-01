@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Eye,
   Edit3,
@@ -17,6 +18,7 @@ import Toast from '../../common/Toast';
 import { buildFileUrl } from '../../../utils/file';
 
 const EmployeeList = () => {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -93,7 +95,7 @@ const EmployeeList = () => {
         apiService.getDepartments(),
         apiService.getRoles(),
         apiService.getEntities(),
-        apiService.getEmployees(0, 50)
+        apiService.getEmployees(0, 10)
       ]);
 
       setDepartments(ensureArray(deptRes, 'Departments'));
@@ -118,13 +120,15 @@ const EmployeeList = () => {
       const createdEmployee = await apiService.createEmployee(newEmployee);
       console.log("[DEBUG] Backend Response (createEmployee):", createdEmployee);
 
+      if (!createdEmployee) {
+        throw new Error("Failed to create employee: No data returned from server.");
+      }
+
       // 🛡️ DEDUPLICATION GUARD: Ensure we don't add the same employee twice
-      // The normalizeEmployee already handles if createdEmployee is an array
-      const normalized = normalizeEmployee(createdEmployee, departments, roles, entities);
-      const decorated = decorateEmployee(normalized, createdEmployee);
+      const decorated = decorateEmployee(createdEmployee);
 
       setEmployees(prev => {
-        const id = decorated.id || decorated.employeeId;
+        const id = decorated?.id || decorated?.employeeId;
         const exists = prev.some(emp => (emp.id || emp.employeeId) === id);
         if (exists) {
           console.warn(`[DEDUPE] Employee ${id} already exists in list. Updating instead of appending.`);
@@ -135,25 +139,56 @@ const EmployeeList = () => {
       setIsAddModalOpen(false);
       setToast({
         show: true,
-        message: `Employee added successfully! Code: ${created.empCode || 'N/A'}. Onboarding link sent.`,
+        message: `Employee added successfully! Code: ${decorated?.empCode || 'N/A'}. Onboarding link sent.`,
         type: 'success'
       });
     } catch (error) {
-      setToast({ show: true, message: 'Failed to add employee: ' + error.message, type: 'error' });
+      console.error("❌ [handleAddEmployee Error]:", error);
+
+      // 🧹 Parse ugly MySQL constraint violations into friendly messages
+      let friendlyMessage = error.message || 'System error';
+      if (friendlyMessage.includes('Duplicate entry')) {
+        if (friendlyMessage.includes('email') || friendlyMessage.toLowerCase().includes('uk')) {
+          // Try to extract the duplicate value from "Duplicate entry 'value' for key ..."
+          const match = friendlyMessage.match(/Duplicate entry '([^']+)'/);
+          const val = match ? match[1] : 'this value';
+          friendlyMessage = `An employee with "${val}" already exists. Please use a different email or phone number.`;
+        } else {
+          friendlyMessage = 'A duplicate record was detected. Please check email and phone.';
+        }
+      }
+
+      setToast({ 
+        show: true, 
+        message: friendlyMessage, 
+        type: 'error' 
+      });
+      throw error; // Re-throw so AddEmployeeModal can keep form open
     }
   };
 
   const handleUpdateEmployee = async (updatedEmployee) => {
     try {
-      const empId = selectedEmployee.id;
-      // API returns pre-normalized employee
+      const empId = selectedEmployee?.id;
+      if (!empId) throw new Error("No employee selected for update.");
+
       const updated = await apiService.updateEmployee(empId, updatedEmployee);
-      setEmployees(prev => prev.map(emp => emp.id === empId ? decorateEmployee(updated) : emp));
+      
+      if (!updated) {
+        throw new Error("Failed to update employee: No data returned from server.");
+      }
+
+      setEmployees(prev => prev.map(emp => (emp.id || emp.employeeId) === empId ? decorateEmployee(updated) : emp));
       setIsEditModalOpen(false);
       setSelectedEmployee(null);
       setToast({ show: true, message: 'Employee updated successfully!', type: 'success' });
     } catch (error) {
-      setToast({ show: true, message: 'Failed to update: ' + error.message, type: 'error' });
+      console.error("❌ [handleUpdateEmployee Error]:", error);
+      setToast({ 
+        show: true, 
+        message: 'Failed to update: ' + (error.message || 'System error'), 
+        type: 'error' 
+      });
     }
   };
 
@@ -202,31 +237,13 @@ const EmployeeList = () => {
     }
   };
 
-  const handleViewProfile = async (emp) => {
-    try {
-      if (emp.id) {
-        setToast({ show: true, message: 'Loading details...', type: 'info' });
-        // API returns pre-normalized detail
-        const fullDetails = await apiService.getEmployeeDetail(emp.id);
-        if (fullDetails) {
-          // 🚀 [SYC FIX] Update the list state with the detailed data
-          // This ensures that extra data (like photos) fetched in details is preserved in list
-          const normalized = normalizeEmployee(fullDetails, departments, roles, entities);
-          const decorated = decorateEmployee(normalized, fullDetails);
-          setEmployees(prev => prev.map(e => (e.id || e.employeeId) === emp.id ? decorated : e));
-          
-          setSelectedEmployee(fullDetails);
-          setIsViewModalOpen(true);
-          setToast({ show: false });
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('Detail fetch failed, using list data:', e);
-      setToast({ show: true, message: 'Showing basic info (detail fetch failed)', type: 'warning' });
+  const handleViewProfile = (emp) => {
+    const id = emp.id || emp.employeeId;
+    if (id) {
+      navigate(`/employees/${id}`);
+    } else {
+      setToast({ show: true, message: 'Cannot open profile: employee has no ID.', type: 'error' });
     }
-    setSelectedEmployee(emp);
-    setIsViewModalOpen(true);
   };
 
   const handleEditEmployee = async (emp) => {
@@ -235,7 +252,11 @@ const EmployeeList = () => {
         setToast({ show: true, message: 'Loading details...', type: 'info' });
         const fullDetails = await apiService.getEmployeeDetail(emp.id);
         if (fullDetails) {
-          setSelectedEmployee(decorateEmployee(fullDetails));
+          console.log("🚀 [DEBUG] Normalizing fullDetails for Edit...");
+          const normalized = normalizeEmployee(fullDetails, departments, roles, entities);
+          const decorated = decorateEmployee(normalized);
+
+          setSelectedEmployee(decorated);
           setIsEditModalOpen(true);
           setToast({ show: false });
           return;
@@ -335,6 +356,7 @@ const EmployeeList = () => {
         departments={departments}
         roles={roles}
         entities={entities}
+        employees={employees}
       />
 
       <EditEmployeeModal

@@ -62,6 +62,9 @@ const mockBackendResponse = {
 console.log("🚀 Starting Normalization Test...\n");
 
 const result = normalizeEmployee(mockBackendResponse);
+console.log("🔍 Result Object Keys:", Object.keys(result));
+console.log("🔍 Result passbookPath:", result.passbookPath);
+console.log("🔍 Result voterPath:", result.voterPath);
 
 const checks = [
     { label: "ID Mapping", pass: result.id === 101 && result.empCode === "EMP001" },
@@ -81,7 +84,15 @@ const checks = [
 let allPassed = true;
 checks.forEach(c => {
     console.log(`${c.pass ? '✅' : '❌'} ${c.label}`);
-    if (!c.pass) allPassed = false;
+    if (!c.pass) {
+        allPassed = false;
+        // Find which specific key failed
+        if (c.label.includes("ID Mapping")) console.log("   - id:", result.id, "empCode:", result.empCode);
+        if (c.label.includes("Personal Scavenging")) console.log("   - val:", result.name || result.email);
+        if (c.label.includes("Bank File")) console.log("   - passbookPath:", result.passbookPath);
+        if (c.label.includes("SSC")) console.log("   - ssc:", JSON.stringify(result.ssc));
+        if (c.label.includes("NOT_UPLOADED")) console.log("   - voterPath:", result.voterPath);
+    }
 });
 
 if (allPassed) {

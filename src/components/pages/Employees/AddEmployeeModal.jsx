@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 
-const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = [], entities = [] }) => {
+const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = [], entities = [], employees = [] }) => {
     const [formData, setFormData] = useState({
         name: '',
         department: '',
@@ -15,6 +15,17 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
         status: 'ONBOARDING'
     });
 
+    const normalizePhone = (num) => num.replace(/\s/g, '').replace(/-/g, '');
+
+    const normalizedPhone = normalizePhone(formData.phone);
+    const existingEmail = employees.find(emp => emp.email?.toLowerCase() === formData.email.toLowerCase());
+    const existingPhone = employees.find(emp => {
+        const empPhone = emp.phone ? normalizePhone(emp.phone) : '';
+        return empPhone === normalizedPhone && normalizedPhone !== '';
+    });
+
+    const isDuplicate = !!(existingEmail || existingPhone);
+
     const getDeptName = d => d.deptName || d.name || d.departmentName || d;
     const getDeptCode = d => d.deptCode || d.deptId || d.id;
 
@@ -26,12 +37,17 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
 
     if (!isOpen) return null;
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         // Basic Validation
         if (!formData.name || !formData.email || !formData.phone || !formData.department || !formData.role || !formData.entity) {
             alert('Please fill in all required fields.');
+            return;
+        }
+
+        if (isDuplicate) {
+            alert('Cannot proceed: A duplicate email or phone number was detected.');
             return;
         }
 
@@ -41,21 +57,32 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
             return;
         }
 
-        onAdd(formData);
-        // Reset form
-        setFormData({
-            name: '',
-            department: '',
-            entity: '',
-            role: '',
-            dateOfInterview: '',
-            dateOfOnboarding: '',
-            dateOfBirth: '',
-            email: '',
-            phone: '',
-            status: 'ONBOARDING'
-        });
-        onClose();
+        try {
+            // Await the API call — form stays open if it fails
+            await onAdd({
+                ...formData,
+                phone: normalizedPhone
+            });
+
+            // Only reset + close if onAdd succeeded (no throw)
+            setFormData({
+                name: '',
+                department: '',
+                entity: '',
+                role: '',
+                dateOfInterview: '',
+                dateOfOnboarding: '',
+                dateOfBirth: '',
+                email: '',
+                phone: '',
+                status: 'ONBOARDING'
+            });
+            onClose();
+        } catch (err) {
+            // Error is already toasted by EmployeeList.handleAddEmployee
+            // We intentionally do NOT close the form so the user can correct their input
+            console.error('[AddEmployeeModal] onAdd threw:', err.message);
+        }
     };
 
     const handleChange = (e) => {
@@ -99,7 +126,9 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
                                     onChange={handleChange}
                                     required
                                     placeholder="example@company.com"
+                                    className={existingEmail ? 'input-error' : ''}
                                 />
+                                {existingEmail && <span className="field-error">Email already exists in directory</span>}
                             </div>
                         </div>
 
@@ -155,7 +184,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
                                     ))}
                                 </select>
                             </div>
-                            <div className="form-group">
+                             <div className="form-group">
                                 <label>Phone Number</label>
                                 <input
                                     type="tel"
@@ -164,7 +193,9 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
                                     onChange={handleChange}
                                     required
                                     placeholder="Enter phone number"
+                                    className={existingPhone ? 'input-error' : ''}
                                 />
+                                {existingPhone && <span className="field-error">Phone number already exists in directory</span>}
                             </div>
                         </div>
 
@@ -204,7 +235,13 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
 
                     <div className="modal-footer">
                         <button type="button" className="secondary-btn" onClick={onClose}>Cancel</button>
-                        <button type="submit" className="primary-btn">Create Employee</button>
+                        <button 
+                            type="submit" 
+                            className={`primary-btn ${isDuplicate ? 'disabled' : ''}`}
+                            disabled={isDuplicate}
+                        >
+                            {isDuplicate ? 'Conflict Detected' : 'Create Employee'}
+                        </button>
                     </div>
                 </form>
             </div >
@@ -317,6 +354,23 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
                 .form-group select:focus {
                     border-color: var(--primary);
                     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+                }
+
+                .input-error {
+                    border-color: #ef4444 !important;
+                }
+
+                .field-error {
+                    font-size: 0.75rem;
+                    color: #ef4444;
+                    font-weight: 500;
+                    margin-top: -0.25rem;
+                }
+
+                .primary-btn.disabled {
+                    background: #94a3b8;
+                    cursor: not-allowed;
+                    opacity: 0.7;
                 }
 
                 .modal-footer {
