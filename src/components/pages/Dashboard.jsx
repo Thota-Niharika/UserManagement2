@@ -24,13 +24,12 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const [empData, vendorData, assetData] = await Promise.all([
-          apiService.getEmployees(),
+        const [empList, vendorData, assetData] = await Promise.all([
+          apiService.getEmployees(), // ← Returns pre-normalized flat array
           apiService.getVendors(),
           apiService.getAssets()
         ]);
 
-        const empList = Array.isArray(empData) ? empData : (empData?.data || []);
         const vendorList = Array.isArray(vendorData) ? vendorData : (vendorData?.data || []);
         const assetList = Array.isArray(assetData) ? assetData : (assetData?.data || []);
 
@@ -41,9 +40,7 @@ const Dashboard = () => {
           assets: assetList.length
         });
 
-        // Get last 5 employees (assuming they are returned in chronological order or have IDs that increase)
-        // Or if the backend returns them newest first, just take slice(0, 5)
-        // For now, let's assume they are order of addition and reverse them.
+        // Get last 5 employees
         setRecentEmployees([...empList].reverse().slice(0, 5));
 
       } catch (error) {
@@ -102,13 +99,13 @@ const Dashboard = () => {
                   </div>
                   <div className="activity-details">
                     <p className="activity-text">
-                      <strong>{emp.fullName || emp.name}</strong> was onboarded as <span>{emp.roleName || emp.role}</span>
+                      <strong>{emp.name}</strong> was onboarded as <span>{emp.roleName}</span>
                     </p>
                     <div className="activity-meta">
                       <span className="activity-time">
-                        <Calendar size={12} /> {emp.dateOfOnboarding || emp.onboardingDate || 'N/A'}
+                        <Calendar size={12} /> {emp.onboardingDate || 'N/A'}
                       </span>
-                      <span className="activity-dept">{emp.deptName || emp.department || ''}</span>
+                      <span className="activity-dept">{emp.deptName}</span>
                     </div>
                   </div>
                 </div>

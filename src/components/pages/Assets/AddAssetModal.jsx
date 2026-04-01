@@ -102,8 +102,9 @@ const AddAssetModal = ({ isOpen, onClose, onAdd }) => {
         if (step === 'assign' && employees.length === 0) {
             const fetchEmps = async () => {
                 try {
-                    const data = await apiService.getEmployees();
-                    setEmployees(Array.isArray(data) ? data : (data.data || []));
+                    // API returns pre-normalized flat array
+                    const list = await apiService.getEmployees();
+                    setEmployees(list);
                 } catch (err) {
                     console.error('Failed to fetch employees', err);
                 }
@@ -273,7 +274,7 @@ const AddAssetModal = ({ isOpen, onClose, onAdd }) => {
                 const asset = addedAssets.find(a => a.id === assetId);
                 const updatePayload = {
                     ...asset,
-                    receiverName: selectedEmployee.fullName || selectedEmployee.name,
+                    receiverName: selectedEmployee.name,
                     assignedDate: new Date().toISOString().split('T')[0],
                     assignedBy: 'Admin',
                     exchangeType: 'Issue',
@@ -986,7 +987,7 @@ const AddAssetModal = ({ isOpen, onClose, onAdd }) => {
 
                             <div className="employee-list" style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
                                 {employees
-                                    .filter(emp => (emp.fullName || emp.name || '').toLowerCase().includes(empSearch.toLowerCase()))
+                                    .filter(emp => (emp.name || '').toLowerCase().includes(empSearch.toLowerCase()))
                                     .map(emp => (
                                         <div
                                             key={emp.id}
@@ -1007,8 +1008,8 @@ const AddAssetModal = ({ isOpen, onClose, onAdd }) => {
                                                 <User size={20} />
                                             </div>
                                             <div style={{ flex: 1 }}>
-                                                <div style={{ fontWeight: '700', color: '#1e293b' }}>{emp.fullName || emp.name}</div>
-                                                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{emp.dept || 'Department Name'} • {emp.role || 'Role'}</div>
+                                                <div style={{ fontWeight: '700', color: '#1e293b' }}>{emp.name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{emp.deptName || '-'} • {emp.roleName || '-'}</div>
                                             </div>
                                             {selectedEmployee?.id === emp.id && <CheckCircle size={20} color="#2563eb" />}
                                         </div>

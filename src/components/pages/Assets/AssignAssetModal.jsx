@@ -16,8 +16,8 @@ const AssignAssetModal = ({ isOpen, onClose, onAssign, assetName }) => {
             const fetchEmployees = async () => {
                 setLoading(true);
                 try {
-                    const data = await apiService.getEmployees();
-                    const list = Array.isArray(data) ? data : (data?.data || []);
+                    // API returns pre-normalized flat array
+                    const list = await apiService.getEmployees();
                     setEmployees(list);
                 } catch (err) {
                     console.error('Failed to fetch employees:', err);
@@ -41,15 +41,15 @@ const AssignAssetModal = ({ isOpen, onClose, onAssign, assetName }) => {
         }
 
         const found = employees.find(emp =>
-            String(emp.employeeId || emp.id).toUpperCase() === empId.trim().toUpperCase()
+            String(emp.id).toUpperCase() === empId.trim().toUpperCase()
         );
 
         if (found) {
             setEmployee({
-                id: found.employeeId || found.id,
-                name: found.fullName || found.name,
-                designation: found.role || found.designation,
-                dept: found.dept || found.department
+                id: found.id,
+                name: found.name,
+                designation: found.roleName,
+                dept: found.deptName
             });
         } else {
             setError('Employee not found with this ID');

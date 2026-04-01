@@ -26,40 +26,37 @@ const EditEmployeeModal = ({ isOpen, onClose, onUpdate, employee, departments = 
 
     useEffect(() => {
         if (employee) {
-            // Helper to find the correct code/ID based on value (could be code or name)
+            // Employee is ALREADY normalized by the API layer.
+            // Use flat field names from the locked contract.
             const findSelected = (val, list, codeFn, nameFn) => {
                 if (!val) return '';
-                // 1. Check if the value is already a valid code in the list
                 const foundByCode = list.find(item => codeFn(item) === val);
                 if (foundByCode) return codeFn(foundByCode);
-
-                // 2. Check if the value is a name that maps to a code
                 const foundByName = list.find(item => nameFn(item) === val);
                 if (foundByName) return codeFn(foundByName);
-
-                return val; // Fallback to original value
+                return val;
             };
 
             setFormData({
-                name: employee.name || employee.fullName || '',
+                name: employee.name || '',
                 department: findSelected(
-                    employee.dept || employee.deptCode || employee.dept_id || (employee.department && getDeptCode(employee.department)),
+                    employee.dept || employee.deptName,
                     departments, getDeptCode, getDeptName
                 ),
                 entity: findSelected(
-                    employee.entity || employee.entityCode || employee.entity_name || (employee.entity && getEntityCode(employee.entity)),
+                    employee.entity || employee.entityName,
                     entities, getEntityCode, getEntityName
                 ),
                 role: findSelected(
-                    employee.role || employee.roleCode || employee.role_id || (employee.role && getRoleCode(employee.role)),
+                    employee.role || employee.roleName,
                     roles, getRoleCode, getRoleName
                 ),
                 dateOfInterview: employee.dateOfInterview || '',
-                dateOfOnboarding: employee.onboardingDate || employee.dateOfOnboarding || '',
-                dateOfBirth: employee.dateOfBirth || employee.dob || '',
+                dateOfOnboarding: employee.onboardingDate || '',
+                dateOfBirth: employee.dateOfBirth || '',
                 email: employee.email || '',
                 phone: employee.phone || '',
-                status: employee.status
+                status: employee.status || 'ACTIVE'
             });
         }
     }, [employee, departments, roles, entities]);
@@ -137,7 +134,7 @@ const EditEmployeeModal = ({ isOpen, onClose, onUpdate, employee, departments = 
                                     required
                                 >
                                     <option value="">Select Department</option>
-                                    {departments.map(dept => (
+                                    {(departments || []).map(dept => (
                                         <option key={getDeptCode(dept)} value={getDeptCode(dept)}>{getDeptName(dept)}</option>
                                     ))}
                                 </select>
@@ -152,7 +149,7 @@ const EditEmployeeModal = ({ isOpen, onClose, onUpdate, employee, departments = 
                                     required
                                 >
                                     <option value="">Select Role</option>
-                                    {roles.map(role => (
+                                    {(roles || []).map(role => (
                                         <option key={getRoleCode(role)} value={getRoleCode(role)}>{getRoleName(role)}</option>
                                     ))}
                                 </select>
@@ -170,7 +167,7 @@ const EditEmployeeModal = ({ isOpen, onClose, onUpdate, employee, departments = 
                                     required
                                 >
                                     <option value="">Select Entity</option>
-                                    {entities.map(ent => (
+                                    {(entities || []).map(ent => (
                                         <option key={getEntityCode(ent)} value={getEntityCode(ent)}>{getEntityName(ent)}</option>
                                     ))}
                                 </select>

@@ -16,21 +16,12 @@ import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import apiService from "../../../services/api";
-import { findByPattern, findProof, scavengeValue, scavengePath } from '../../../utils/normalizeEmployee';
+import { normalizeEmployee } from '../../../utils/normalizeEmployee';
 
 const EmployeeOnboardingForm = () => {
 
     const [searchParams] = useSearchParams();
-<<<<<<< HEAD
-
-    // Extract token robustly
-    const token = useMemo(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get('token') || searchParams.get('token');
-    }, [searchParams]);
-=======
     const token = searchParams.get('token');
->>>>>>> 62ebbba (commit)
 
     const [step, setStep] = useState(1);
     const [errors, setErrors] = useState({});
@@ -47,10 +38,9 @@ const EmployeeOnboardingForm = () => {
     const fetchExistingData = async (onboardingToken) => {
         setLoading(true);
         try {
-            console.log("🔍 Fetching existing onboarding data for token:", onboardingToken);
+            console.log("🚀 [STRICT] Fetching onboarding data...");
             const data = await apiService.getOnboardingByToken(onboardingToken);
             if (data) {
-                console.log("✅ [DEBUG] Oboarding Data Found:", data);
                 if (data.rejectedDocuments) {
                     setRejectedFields(data.rejectedDocuments);
                 }
@@ -63,108 +53,59 @@ const EmployeeOnboardingForm = () => {
         }
     };
 
-    const mapEmployeeToForm = (empRaw) => {
-        if (!empRaw) return;
+    const mapEmployeeToForm = (emp) => {
+        if (!emp) return;
 
-        // --- PRE-PARSING (Align with normalizeEmployee.js) ---
-        let emp = { ...empRaw };
-        Object.keys(empRaw).forEach(key => {
-            const val = empRaw[key];
-            if (typeof val === 'string' && val.length > 2 && (val.trim().startsWith('{') || val.trim().startsWith('['))) {
-                try {
-                    const parsed = JSON.parse(val);
-                    if (parsed && typeof parsed === 'object') {
-                        emp[key] = parsed;
-                    }
-                } catch (e) { }
-            }
-        });
-
-        // --- Map Personal ---
+        // --- [MANDATE 2] STRICT LITERAL MAPPING ONLY ---
         setPersonal({
             fullName: emp.fullName || '',
-            phone: emp.phoneNumber || emp.phone || '',
+            phone: emp.phoneNumber || '',
             bloodGroup: emp.bloodGroup || '',
             email: emp.email || '',
-            permAddress: emp.permanentAddress || emp.permAddress || '',
-            presAddress: emp.presentAddress || emp.presAddress || '',
-            fatherName: emp.fathersName || emp.fatherName || '',
-            fatherPhone: emp.fathersPhone || emp.fatherPhone || '',
-            motherName: emp.mothersName || emp.motherName || '',
-            motherPhone: emp.mothersPhone || emp.motherPhone || '',
-            emergencyName: emp.emergencyContactName || emp.emergencyName || '',
-            emergencyRel: emp.emergencyRelationship || emp.emergencyRel || '',
-            emergencyPhone: emp.emergencyNumber || emp.emergencyPhone || '',
+            permAddress: emp.permanentAddress || '',
+            presAddress: emp.presentAddress || '',
+            fatherName: emp.fathersName || '',
+            fatherPhone: emp.fathersPhone || '',
+            motherName: emp.mothersName || '',
+            motherPhone: emp.mothersPhone || '',
+            emergencyName: emp.emergencyContactName || '',
+            emergencyRel: emp.emergencyRelationship || '',
+            emergencyPhone: emp.emergencyNumber || '',
             dateOfBirth: emp.dateOfBirth ? (Array.isArray(emp.dateOfBirth) ? formatDate(emp.dateOfBirth) : emp.dateOfBirth.split('T')[0]) : '',
         });
 
-        const mapEdu = (eduRaw, patterns = []) => {
-            let edu = eduRaw;
-            if (!edu && patterns.length > 0) {
-                edu = scavengeValue(emp, patterns);
-            }
-
-            // If scavenge found a string (likely flattened field), try to find other sibling fields
-            if (typeof edu === 'string' && patterns.length > 0) {
-                const prefix = patterns[0].toLowerCase();
-                const school = scavengeValue(emp, [prefix + 'School', prefix + 'Institution', prefix + 'College', prefix + 'Name']) || edu;
-                const ht = scavengeValue(emp, [prefix + 'HallTicket', prefix + 'RollNo', prefix + 'Id']);
-                const yr = scavengeValue(emp, [prefix + 'Year', prefix + 'Passout', prefix + 'Date']);
-                const score = scavengeValue(emp, [prefix + 'Percentage', prefix + 'Cgpa', prefix + 'Marks']);
-                const cert = scavengePath(emp, [prefix + 'Certificate', prefix + 'File', prefix + 'Doc']);
-                const memo = scavengePath(emp, [prefix + 'Marks', prefix + 'Memo', prefix + 'Transcript']);
-
-                edu = {
-                    institutionName: school,
-                    hallTicketNo: ht,
-                    passoutYear: yr,
-                    percentageCgpa: score,
-                    certificatePath: cert,
-                    marksMemoPath: memo
-                };
-            }
-
-            if (!edu) return { institutionName: '', htNumber: '', year: '', percentage: '', certificate: null, marksMemo: null };
-
-            const certPath = edu.certificatePath || edu.certificateFilePath || scavengePath(edu, ['certificate', 'certPath', 'doc', 'file']);
-            const memoPath = edu.marksMemoPath || edu.marksMemoFilePath || scavengePath(edu, ['marksMemo', 'marks', 'memo', 'transcript']);
+        const mapEdu = (edu) => {
+            if (!edu) return { school: '', htNumber: '', year: '', percentage: '', certificate: null };
 
             return {
-<<<<<<< HEAD
-                institutionName: edu.institutionName || scavengeValue(edu, ['institution', 'college', 'school', 'university', 'board']) || '',
-                htNumber: edu.hallTicketNo || edu.hallTicketNumber || scavengeValue(edu, ['hallTicket', 'htNumber', 'rollNo']) || '',
-=======
-                id: edu.id || scavengeValue(edu, ['id']) || null,
-                school: edu.institutionName || scavengeValue(edu, ['institution', 'college', 'school', 'university', 'board']) || '',
-                htNumber: edu.hallTicketNo || scavengeValue(edu, ['hallTicket', 'htNumber', 'rollNo']) || '',
->>>>>>> 62ebbba (commit)
-                year: edu.passoutYear || scavengeValue(edu, ['year', 'passout', 'date', 'passing', 'completion']) || '',
-                percentage: edu.percentageCgpa || edu.percentage || scavengeValue(edu, ['percentage', 'cgpa', 'marks', 'score', 'grade']) || '',
-                certificate: certPath ? { name: certPath.split('/').pop(), isServerFile: true, path: certPath } : null,
-                marksMemo: memoPath ? { name: memoPath.split('/').pop(), isServerFile: true, path: memoPath } : null,
+                id: edu.id || null,
+                school: edu.institutionName || '',
+                htNumber: edu.hallTicketNo || '',
+                year: edu.passoutYear || '',
+                percentage: edu.percentageCgpa || '',
+                certificate: edu.certificatePath ? { name: edu.certificatePath.split('/').pop(), isServerFile: true, path: edu.certificatePath } : null,
+                marksMemo: edu.marksMemoPath ? { name: edu.marksMemoPath.split('/').pop(), isServerFile: true, path: edu.marksMemoPath } : null,
             };
         };
 
-        // --- Map Education ---
         const eduState = {
-            ssc: mapEdu(emp.ssc, ['ssc', '10th', 'secondary']),
-            inter: mapEdu(emp.intermediate, ['inter', '12th', 'higherSecondary']),
-            grad: mapEdu(emp.graduation, ['graduation', 'degree', 'ug']),
+            ssc: mapEdu(emp.ssc),
+            inter: mapEdu(emp.intermediate),
+            grad: mapEdu(emp.graduation),
             postGrad: (emp.postGraduations || []).map(pg => mapEdu(pg)),
             otherCerts: (emp.otherCertificates || []).map(cert => ({
-                institute: cert.instituteName || scavengeValue(cert, ['institute', 'school', 'college']) || '',
-                certNumber: cert.certificateNumber || scavengeValue(cert, ['certificateNumber', 'regNo']) || '',
-                certificate: (cert.certificatePath || scavengePath(cert, ['certificate', 'file'])) ? {
-                    name: (cert.certificatePath || scavengePath(cert, ['certificate', 'file'])).split('/').pop(),
+                id: cert.id || null,
+                institute: cert.instituteName || '',
+                certNumber: cert.certificateNumber || '',
+                certificate: cert.certificatePath ? {
+                    name: cert.certificatePath.split('/').pop(),
                     isServerFile: true,
-                    path: cert.certificatePath || scavengePath(cert, ['certificate', 'file'])
+                    path: cert.certificatePath
                 } : null,
             })),
         };
-        console.log("📚 [DEBUG] Mapped Education State:", eduState);
         setEducation(eduState);
 
-        // --- Map Experience ---
         setExperience({
             internships: (emp.internships || []).map(int => ({
                 company: int.companyName || '',
@@ -185,52 +126,42 @@ const EmployeeOnboardingForm = () => {
             }))
         });
 
-        // --- Map Bank ---
-        const b = emp.bankDetails || {};
-        const bankDocValue = emp.documentFilePath || emp.document_file_path || b.documentFilePath || b.document_file_path || emp.passbookPath || null;
-        console.log("🏦 [DEBUG] Bank Extraction - raw bankDetails:", b);
-
+        const bankDetails = emp.bankDetails || {};
         setBank({
-            id: b.id || scavengeValue(b, ['id']) || null,
-            bankName: emp.bankName || b.bankName || findByPattern(b, ['bankName', 'bank_name', 'bank_Name']) || findByPattern(emp, ['bankName', 'bank_name']) || '',
-            branchName: emp.branchName || b.branchName || b.branch || findByPattern(b, ['branch']) || findByPattern(emp, ['branchName', 'branch_name']) || '',
-            accountNumber: emp.accountNumber || b.accountNumber || findByPattern(b, ['account', 'acc_no']) || findByPattern(emp, ['accountNumber', 'account_no']) || '',
-            ifscCode: emp.ifscCode || b.ifscCode || findByPattern(b, ['ifsc']) || findByPattern(emp, ['ifscCode', 'ifsc_code']) || '',
-            upiId: emp.upiId || b.upiId || findByPattern(b, ['upi']) || findByPattern(emp, ['upiId', 'upi_id']) || '',
-            documentType: emp.documentType || b.documentType || 'PASSBOOK',
-            bankDocumentPath: bankDocValue || '',
-            docImage: bankDocValue ? { name: bankDocValue.split('/').pop(), isServerFile: true, path: bankDocValue } : null,
-            employeeFormId: emp.employeeFormId || emp.employeeId || emp.id || null
+            id: bankDetails.id || null,
+            bankName: bankDetails.bankName || '',
+            branchName: bankDetails.branchName || '',
+            accountNumber: bankDetails.accountNumber || '',
+            ifscCode: bankDetails.ifscCode || '',
+            upiId: bankDetails.upiId || '',
+            documentType: bankDetails.documentType || 'PASSBOOK',
+            bankDocumentPath: bankDetails.documentFilePath || '',
+            docImage: bankDetails.documentFilePath ? { name: bankDetails.documentFilePath.split('/').pop(), isServerFile: true, path: bankDetails.documentFilePath } : null,
+            employeeFormId: emp.employeeId || emp.id || null
         });
 
-        // --- Map Documents ---
-        const pan = findProof(emp, 'PAN') || emp.panProof || scavengeValue(emp, ['pan_card', 'pan_file', 'panProof']) || {};
-        const aadhar = findProof(emp, 'AADHAR') || emp.aadharProof || scavengeValue(emp, ['aadhar_card', 'aadhar_file', 'aadharProof']) || {};
-        const photo = findProof(emp, 'PHOTO') || emp.photoProof || scavengeValue(emp, ['photo', 'passportPhoto', 'photoProof']) || {};
-        const passport = findProof(emp, 'PASSPORT') || emp.passportProof || scavengeValue(emp, ['passport', 'passportDoc', 'passport_file', 'passportProof']) || {};
-        const voter = findProof(emp, 'VOTER') || emp.voterProof || scavengeValue(emp, ['voter', 'voterId', 'voter_file', 'voterProof']) || {};
-
-        const getDocPath = (doc) => {
-            if (!doc) return null;
-            const isStrPath = (v) => typeof v === 'string' && (v.includes('/') || v.includes('\\') || v.includes('.'));
-            if (isStrPath(doc)) return doc;
-            if (typeof doc === 'object') {
-                return doc.filePath || doc.path || doc.certificatePath || doc.url || Object.values(doc).find(isStrPath);
-            }
-            return null;
+        // Map Documents strictly from identityProofs or direct fields
+        const getProofValue = (type) => {
+            if (!emp.identityProofs) return {};
+            return emp.identityProofs.find(p => (p.proofType || p.type) === type) || {};
         };
+
+        const pan = getProofValue('PAN');
+        const aadhar = getProofValue('AADHAR');
+        const photo = getProofValue('PHOTO');
+        const passport = getProofValue('PASSPORT');
+        const voter = getProofValue('VOTER');
 
         const docState = {
-            id: pan.id || aadhar.id || photo.id || passport.id || voter.id || scavengeValue(pan, ['id']) || null,
-            panNumber: pan.documentNumber || scavengeValue(emp, ['panNumber', 'panId', 'panNo']) || '',
-            panCard: getDocPath(pan) ? { name: getDocPath(pan).split('/').pop(), isServerFile: true, path: getDocPath(pan) } : null,
-            aadharNumber: aadhar.documentNumber || scavengeValue(emp, ['aadharNumber', 'aadharId', 'aadharNo']) || '',
-            aadharCard: getDocPath(aadhar) ? { name: getDocPath(aadhar).split('/').pop(), isServerFile: true, path: getDocPath(aadhar) } : null,
-            passportPhoto: getDocPath(photo) ? { name: getDocPath(photo).split('/').pop(), isServerFile: true, path: getDocPath(photo) } : null,
-            passportDoc: getDocPath(passport) ? { name: getDocPath(passport).split('/').pop(), isServerFile: true, path: getDocPath(passport) } : null,
-            voterId: getDocPath(voter) ? { name: getDocPath(voter).split('/').pop(), isServerFile: true, path: getDocPath(voter) } : null,
+            id: emp.id || null,
+            panNumber: pan.documentNumber || '',
+            panCard: pan.filePath ? { name: pan.filePath.split('/').pop(), isServerFile: true, path: pan.filePath } : null,
+            aadharNumber: aadhar.documentNumber || '',
+            aadharCard: aadhar.filePath ? { name: aadhar.filePath.split('/').pop(), isServerFile: true, path: aadhar.filePath } : null,
+            passportPhoto: photo.filePath ? { name: photo.filePath.split('/').pop(), isServerFile: true, path: photo.filePath } : null,
+            passportDoc: passport.filePath ? { name: passport.filePath.split('/').pop(), isServerFile: true, path: passport.filePath } : null,
+            voterId: voter.filePath ? { name: voter.filePath.split('/').pop(), isServerFile: true, path: voter.filePath } : null,
         };
-        console.log("📄 [DEBUG] Mapped Documents State:", docState);
         setDocuments(docState);
     };
 
@@ -256,7 +187,7 @@ const EmployeeOnboardingForm = () => {
             const levels = ['ssc', 'inter', 'grad'];
             for (const level of levels) {
                 const data = education[level];
-                if (!data.institutionName) newErrors[`${level}_institutionName`] = 'Required';
+                if (!(data.school || data.college)) newErrors[`${level}_college`] = 'Required';
                 if (!data.htNumber) newErrors[`${level}_htNumber`] = 'Required';
                 if (!data.year) newErrors[`${level}_year`] = 'Required';
                 if (!data.percentage) newErrors[`${level}_percentage`] = 'Required';
@@ -348,19 +279,11 @@ const EmployeeOnboardingForm = () => {
     });
 
     const [education, setEducation] = useState({
-<<<<<<< HEAD
-        ssc: { institutionName: '', htNumber: '', year: '', percentage: '', certificate: null, marksMemo: null },
-        inter: { institutionName: '', htNumber: '', year: '', percentage: '', certificate: null, marksMemo: null },
-        grad: { institutionName: '', htNumber: '', year: '', percentage: '', certificate: null, marksMemo: null },
-        postGrad: [], // Array of objects
-        otherCerts: [], // { institute: '', certNumber: '', certificate: null }
-=======
         ssc: { school: '', htNumber: '', year: '', percentage: '', certificate: null, certificatePath: '', marksMemoPath: '' },
         inter: { college: '', htNumber: '', year: '', percentage: '', certificate: null, certificatePath: '', marksMemoPath: '' },
         grad: { college: '', htNumber: '', year: '', percentage: '', marksMemo: null, certificate: null, certificatePath: '', marksMemoPath: '' },
         postGrad: [],  // Array of objects
         otherCerts: [], // { institute: '', certNumber: '', certificate: null, certificatePath: '' }
->>>>>>> 62ebbba (commit)
     });
 
     const [experience, setExperience] = useState({
@@ -386,20 +309,12 @@ const EmployeeOnboardingForm = () => {
     const [livePhoto, setLivePhoto] = useState(null);
 
     const [bank, setBank] = useState({
-<<<<<<< HEAD
-        name: '',
-        branch: '',
-        accNumber: '',
-        ifsc: '',
-        docType: 'PASSBOOK',
-=======
         bankName: '',
         branchName: '',
         accountNumber: '',
         ifscCode: '',
         documentType: 'PASSBOOK',
         bankDocumentPath: '',
->>>>>>> 62ebbba (commit)
         docImage: null,
         upiId: ''
     });
@@ -431,7 +346,7 @@ const EmployeeOnboardingForm = () => {
             ...prev,
             [level]: { ...prev[level], [field]: value }
         }));
-        const errKey = `${level}_${field}`;
+        const errKey = `${level}_${field === 'college' ? 'college' : field}`;
         if (errors[errKey]) {
             setErrors(prev => {
                 const newErrs = { ...prev };
@@ -517,11 +432,7 @@ const EmployeeOnboardingForm = () => {
     const addPostGrad = () => {
         setEducation(prev => ({
             ...prev,
-<<<<<<< HEAD
-            postGrad: [...prev.postGrad, { institutionName: '', year: '', percentage: '', certificate: null }]
-=======
             postGrad: [...prev.postGrad, { college: '', year: '', percentage: '', certificate: null, certificatePath: '', uploading: false }]
->>>>>>> 62ebbba (commit)
         }));
     };
 
@@ -738,19 +649,6 @@ const EmployeeOnboardingForm = () => {
             return;
         }
 
-        // Explicit bank details validation
-        if (!bank.name || !bank.accNumber || !bank.ifsc || !bank.branch) {
-            alert("Please fill all bank details");
-            return;
-        }
-
-        const ifsc = bank.ifsc.toUpperCase().trim();
-        const ifscPattern = /^[A-Z]{4}0[0-9]{6}$/;
-        if (!ifscPattern.test(ifsc)) {
-            alert("Invalid IFSC Code. Example: SBIN0001234");
-            return;
-        }
-
         try {
             setLoading(true);
 
@@ -765,26 +663,8 @@ const EmployeeOnboardingForm = () => {
                 return;
             }
 
-<<<<<<< HEAD
-            const mapEducation = (edu, type) => {
-                if (!edu) return null;
-                return {
-                    educationType: type,
-                    institutionName: edu.institutionName || '',
-                    hallTicketNumber: edu.htNumber || '',
-                    passoutYear: edu.year || '',
-                    percentage: edu.percentage || '',
-                    certificateFilePath: getFileInfo(edu.certificate, "Edu Cert"),
-                    marksMemoFilePath: getFileInfo(edu.marksMemo, "Edu Marks")
-                };
-            };
-
-            // 1. Prepare JSON DTO (Reverting to separate fields to avoid 'Unrecognized field "educations"' error)
-            const jsonData = {
-=======
             // --- Revert: Use JSON DTO + Files (Resolves 'Required part data is not present') ---
             const dto = {
->>>>>>> 62ebbba (commit)
                 fullName: personal.fullName,
                 email: personal.email,
                 phoneNumber: personal.phone,
@@ -799,21 +679,6 @@ const EmployeeOnboardingForm = () => {
                 emergencyContactName: personal.emergencyName,
                 emergencyRelationship: personal.emergencyRel,
                 emergencyNumber: personal.emergencyPhone,
-<<<<<<< HEAD
-                bankDetails: {
-                    bankName: bank.name,
-                    branchName: bank.branch,
-                    accountNumber: bank.accNumber,
-                    ifscCode: ifsc,
-                    upiId: bank.upiId,
-                    documentType: bank.docType
-                },
-                documentFilePath: getFileInfo(bank.docImage, "Bank Document"),
-                ssc: mapEducation(education.ssc, 'SSC'),
-                intermediate: mapEducation(education.inter, 'INTERMEDIATE'),
-                graduation: mapEducation(education.grad, 'GRADUATION'),
-                postGraduations: education.postGrad.map(pg => mapEducation(pg, 'POST_GRADUATION')),
-=======
 
                 ssc: {
                     id: education.ssc.id || null,
@@ -853,16 +718,11 @@ const EmployeeOnboardingForm = () => {
                     percentage: pg.percentage,
                     certificateFilePath: getFileInfo(pg.certificate, "PG Cert"),
                 })),
->>>>>>> 62ebbba (commit)
                 otherCertificates: education.otherCerts.map(cert => ({
                     id: cert.id || null,
                     instituteName: cert.institute,
                     certificateNumber: cert.certNumber,
-<<<<<<< HEAD
-                    certificateFilePath: getFileInfo(cert.certificate, "Other Cert")
-=======
                     certificatePath: getFileInfo(cert.certificate, "Other Cert"),
->>>>>>> 62ebbba (commit)
                 })),
 
                 internships: experience.internships.map(int => ({
@@ -878,7 +738,7 @@ const EmployeeOnboardingForm = () => {
                 workExperiences: experience.workHistory.map(work => ({
                     id: work.id || null,
                     companyName: work.company,
-                    yearsOfExperience: work.years,
+                    yearsOfExp: work.years,
                     offerLetterPath: getFileInfo(work.offerLetter, "Work Offer"),
                     relievingLetterPath: getFileInfo(work.relievingLetter, "Work Relieving"),
                     payslipsPath: getFileInfo(work.payslips, "Work Payslips"),
@@ -900,82 +760,6 @@ const EmployeeOnboardingForm = () => {
                 // --- Fat IdentityProof DTO ---
                 // The backend uses 'panProof' as the field name even if it contains all other info
                 panProof: {
-<<<<<<< HEAD
-                    panNumber: documents.panNumber
-                },
-                aadharProof: {
-                    aadhaarNumber: documents.aadharNumber
-                },
-                photoProof: {},
-                passportProof: {
-                    passportNumber: documents.passportNumber
-                },
-                voterProof: {
-                    voterNumber: documents.voterNumber
-                }
-            };
-
-            console.log("Submit Payload:", JSON.stringify(jsonData, null, 2));
-
-            // 2. Build FormData - Send JSON
-            const tokenFromUrl = new URLSearchParams(window.location.search).get('token');
-            const submitUrl = '/api/onboarding/submit';
-            const query = `?token=${encodeURIComponent(token || tokenFromUrl || '')}`;
-
-            console.log('Token from URL:', token || tokenFromUrl);
-            console.log('Current page URL:', window.location.href);
-            console.log('Full request URL will be:', submitUrl + query);
-            console.log('Method: POST');
-
-            const formData = new FormData();
-            // 1. Add the entire DTO as a JSON Blob under key "data" (matching backend requirement)
-            formData.append('data', new Blob([JSON.stringify(jsonData)], {
-                type: 'application/json'
-            }));
-
-            // Log FormData entries for verification
-            console.log('📦 FormData entries:');
-            for (let [key, value] of formData.entries()) {
-                console.log(key, value instanceof File ? `📄 File: ${value.name} (${value.size} bytes)` : (value instanceof Blob ? '📦 Blob/JSON' : value));
-            }
-
-            // 2. Add files (with correct part names matching backend @RequestPart)
-            // Use helper to append only if it's a real File (not an existing server file object)
-            const appendFile = (key, file) => {
-                if (file && file instanceof File) {
-                    formData.append(key, file);
-                }
-            };
-
-            if (education.otherCerts.length > 0) {
-                education.otherCerts.forEach((cert, index) => {
-                    // User specified 'other_certificate_file' and 'other_marks_memo_file' without index
-                    appendFile(`other_certificate_file`, cert.certificate);
-                    appendFile(`other_marks_memo_file`, cert.marksMemo);
-                });
-            }
-
-            appendFile('bank', bank.docImage);
-            appendFile('ssc_certificate', education.ssc.certificate);
-            appendFile('ssc_marks_memo', education.ssc.marksMemo);
-            appendFile('inter_certificate', education.inter.certificate);
-            appendFile('inter_marks_memo', education.inter.marksMemo);
-            
-            // User specified grad_certificate_0, grad_certificate_1 etc. 
-            // Our form has one graduation, but we support indexing just in case.
-            appendFile('grad_certificate_0', education.grad.certificate);
-            appendFile('grad_marks_memo_0', education.grad.marksMemo);
-
-            education.postGrad.forEach((pg, i) => {
-                // User specified 'post_graduation_certificate_file' without index
-                appendFile(`post_graduation_certificate_file`, pg.certificate);
-                appendFile(`post_graduation_marks_memo_file`, pg.marksMemo);
-            });
-
-            experience.internships.forEach((int, i) => {
-                appendFile(`internship_offer_letter_${i}`, int.offerLetter);
-                appendFile(`internship_experience_certificate_${i}`, int.relievingLetter);
-=======
                     id: documents.id || null,
                     panNumber: (documents.panNumber || '').replace(/\s+/g, '').toUpperCase(),
                     panFilePath: documents.panCardPath || getFileInfo(documents.panCard, "PAN Card"),
@@ -1008,36 +792,8 @@ const EmployeeOnboardingForm = () => {
             experience.internships.forEach((int, i) => {
                 if (isNewFile(int.offerLetter)) files[`internshipOfferLetter_${i}`] = int.offerLetter;
                 if (isNewFile(int.relievingLetter)) files[`internshipExpCert_${i}`] = int.relievingLetter;
->>>>>>> 62ebbba (commit)
             });
             experience.workHistory.forEach((work, i) => {
-<<<<<<< HEAD
-                appendFile(`experience_offer_letter_${i}`, work.offerLetter);
-                appendFile(`experience_relieving_letter_${i}`, work.relievingLetter);
-                appendFile(`experience_payslips_${i}`, work.payslips);
-                appendFile(`experience_certificate_${i}`, work.experienceCert);
-            });
-
-            appendFile('pan', documents.panCard);
-            appendFile('aadhaar', documents.aadharCard);
-            appendFile('photo', documents.passportPhoto);
-            appendFile('passport', documents.passportDoc);
-            appendFile('voter', documents.voterId);
-
-            // Detailed logging for debugging
-            const response = await apiService.submitOnboarding(formData, token);
-            console.log("✅ Onboarding Submit Success:", response);
-
-            alert('Registration successful! Our team will review your application.');
-            setStep(1);
-        } catch (error) {
-            console.error("❌ Submission Failed:", error.message);
-            if (error instanceof TypeError) {
-                alert("Server unreachable or blocked by browser.");
-            } else {
-                alert("Submission failed: " + error.message);
-            }
-=======
                 if (isNewFile(work.offerLetter)) files[`workOfferLetter_${i}`] = work.offerLetter;
                 if (isNewFile(work.relievingLetter)) files[`workRelievingLetter_${i}`] = work.relievingLetter;
                 if (isNewFile(work.payslips)) files[`workPayslips_${i}`] = work.payslips;
@@ -1066,7 +822,6 @@ const EmployeeOnboardingForm = () => {
             alert(`Submission failed: ${error.message}`);
         } finally {
             setLoading(false);
->>>>>>> 62ebbba (commit)
         }
     };
     // --- Render ---
@@ -1189,7 +944,7 @@ const EmployeeOnboardingForm = () => {
                                     <div key={i} className="dynamic-card">
                                         <button type="button" className="btn-del" onClick={() => removePostGrad(i)}><Trash2 size={16} /></button>
                                         <div className="row">
-                                            <Input label="College Name" val={pg.institutionName} fn={(e) => updatePostGrad(i, 'institutionName', e.target.value)} />
+                                            <Input label="College Name" val={pg.college} fn={(e) => updatePostGrad(i, 'college', e.target.value)} />
                                             <Input label="Year" val={pg.year} fn={(e) => updatePostGrad(i, 'year', e.target.value)} />
                                         </div>
                                         <div className="row">
@@ -1338,24 +1093,8 @@ const EmployeeOnboardingForm = () => {
                                 <Input label="Branch Name" name="branchName" val={bank.branchName} fn={handleBankChange} req error={errors.branchName} rejected={isFieldRejected('branchName')} />
                             </div>
                             <div className="row">
-<<<<<<< HEAD
-                                <Input label="Account Number" name="accNumber" val={bank.accNumber} fn={handleBankChange} req error={errors.accNumber} rejected={isFieldRejected('accountNumber')} />
-                                <Input
-                                    label="IFSC Code"
-                                    name="ifsc"
-                                    val={bank.ifsc}
-                                    fn={handleBankChange}
-                                    req
-                                    error={errors.ifsc}
-                                    rejected={isFieldRejected('ifscCode')}
-                                    placeholder="SBIN0001234"
-                                    pattern="[A-Za-z]{4}0[0-9]{6}"
-                                    title="Enter valid IFSC like SBIN0001234"
-                                />
-=======
                                 <Input label="Account Number" name="accountNumber" val={bank.accountNumber} fn={handleBankChange} req error={errors.accountNumber} rejected={isFieldRejected('accountNumber')} />
                                 <Input label="IFSC Code" name="ifscCode" val={bank.ifscCode} fn={handleBankChange} req error={errors.ifscCode} rejected={isFieldRejected('ifscCode')} />
->>>>>>> 62ebbba (commit)
                             </div>
 
                             <div className="row">
@@ -1374,13 +1113,8 @@ const EmployeeOnboardingForm = () => {
                                         className={`form-input ${isFieldRejected('documentFilePath') ? 'error' : ''}`}
                                     >
                                         <option value="PASSBOOK">Passbook</option>
-<<<<<<< HEAD
-                                        <option value="STATEMENT">Bank Statement</option>
-                                        <option value="CHEQUE">Cancelled Cheque</option>
-=======
                                         <option value="BANK_STATEMENT">Bank Statement</option>
                                         <option value="CANCELLED_CHEQUE">Cancelled Cheque</option>
->>>>>>> 62ebbba (commit)
                                     </select>
                                     {isFieldRejected('documentFilePath') && <span className="error-msg">This document was rejected.</span>}
                                 </div>
@@ -1911,7 +1645,7 @@ const EmployeeOnboardingForm = () => {
     );
 };
 
-const Input = ({ label, name, val, fn, req, type = "text", error, rejected, ...rest }) => (
+const Input = ({ label, name, val, fn, req, type = "text", error, rejected }) => (
     <div className={`input-group ${error || rejected ? 'error' : ''}`}>
         <label>
             {label} {req && <span style={{ color: 'red' }}>*</span>}
@@ -1924,7 +1658,6 @@ const Input = ({ label, name, val, fn, req, type = "text", error, rejected, ...r
             onChange={fn}
             required={req}
             className={`form-input ${error || rejected ? 'error' : ''}`}
-            {...rest}
         />
         {error && <span className="error-msg">{error}</span>}
         {rejected && <span className="error-msg">This field was rejected. Please update it.</span>}
@@ -1966,10 +1699,10 @@ const EducationBlock = ({ title, data, onChange, hasMarskMemo, schoolLabel = "Sc
             <div className="row">
                 <Input
                     label={schoolLabel}
-                    val={data.institutionName}
-                    fn={(e) => onChange('institutionName', e.target.value)}
+                    val={data.school || data.college}
+                    fn={(e) => onChange('college', e.target.value)}
                     req={req}
-                    error={errors[`${levelKey}_institutionName`]}
+                    error={errors[`${levelKey}_college`]}
                 />
                 <Input
                     label="Hall Ticket No."

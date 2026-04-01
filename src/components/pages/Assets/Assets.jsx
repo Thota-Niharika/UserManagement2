@@ -37,18 +37,18 @@ const Assets = () => {
     });
 
     const normalizeAsset = (raw) => {
-        if (!raw) return null;
+        if (!raw || typeof raw !== 'object') return null;
         return {
             ...raw,
-            id: raw.id || raw.assetId,
-            name: raw.assetName || raw.name || 'Unnamed Asset',
-            tag: raw.assetTag || raw.tag || '-',
-            assetCode: raw.assetCode || raw.id || '-',
-            exchangeType: raw.exchangeType || 'Issue',
-            procurementType: raw.procurementType || 'Purchasing',
-            receiverName: raw.receiverName || '',
-            photos: raw.photos || raw.filePaths || [],
-            vendor: raw.vendor || (raw.vendorId ? { vendorId: raw.vendorId, vendorName: 'Vendor ' + raw.vendorId } : null)
+            id: (raw?.id || raw?.assetId) ?? null,
+            name: (raw?.assetName || raw?.name) ?? 'Unnamed Asset',
+            tag: (raw?.assetTag || raw?.tag) ?? '-',
+            assetCode: (raw?.assetCode || raw?.id) ?? '-',
+            exchangeType: raw?.exchangeType ?? 'Issue',
+            procurementType: raw?.procurementType ?? 'Purchasing',
+            receiverName: raw?.receiverName ?? '',
+            photos: Array.isArray(raw?.photos) ? raw.photos : (Array.isArray(raw?.filePaths) ? raw.filePaths : []),
+            vendor: raw?.vendor || (raw?.vendorId ? { vendorId: raw.vendorId, vendorName: 'Vendor ' + raw.vendorId } : null)
         };
     };
 
@@ -151,15 +151,16 @@ const Assets = () => {
         setIsViewModalOpen(true);
     };
 
-    const filteredAssets = assets.filter(asset => {
+    const filteredAssets = (assets || []).filter(asset => {
+        const term = (searchTerm || '').toLowerCase();
         const matchesSearch =
-            (asset.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (asset.tag || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (asset.id || '').toLowerCase().includes(searchTerm.toLowerCase());
+            (asset?.name || '').toLowerCase().includes(term) ||
+            (asset?.tag || '').toLowerCase().includes(term) ||
+            String(asset?.id || '').toLowerCase().includes(term);
 
-        const matchesExchange = activeFilters.exchangeType === 'All' || asset.exchangeType === activeFilters.exchangeType;
+        const matchesExchange = activeFilters.exchangeType === 'All' || asset?.exchangeType === activeFilters.exchangeType;
         const matchesAssignment = activeFilters.assignmentStatus === 'All' ||
-            (activeFilters.assignmentStatus === 'Assigned' ? asset.receiverName : !asset.receiverName);
+            (activeFilters.assignmentStatus === 'Assigned' ? asset?.receiverName : !asset?.receiverName);
 
         return matchesSearch && matchesExchange && matchesAssignment;
     });
@@ -329,18 +330,18 @@ const Assets = () => {
                                     <th className="text-center">Action</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                              <tbody>
                                 {filteredAssets.length > 0 ? (
                                     filteredAssets.map((asset) => (
-                                        <tr key={asset.id} className="table-row-hover">
+                                        <tr key={asset?.id || Math.random()} className="table-row-hover">
                                             <td>
                                                 <div className="tag-cell font-mono">
-                                                    <span className="asset-id">{asset.assetCode || '-'}</span>
+                                                    <span className="asset-id">{asset?.assetCode || '-'}</span>
                                                 </div>
                                             </td>
                                             <td>
-                                                <span className={`procurement-badge ${asset.procurementType === 'Vendor' ? 'vendor' : 'purchased'}`}>
-                                                    {asset.procurementType === 'Vendor' ? 'From Vendor' : 'Purchased'}
+                                                <span className={`procurement-badge ${(asset?.procurementType || '').toLowerCase() === 'vendor' ? 'vendor' : 'purchased'}`}>
+                                                    {(asset?.procurementType || '').toLowerCase() === 'vendor' ? 'From Vendor' : 'Purchased'}
                                                 </span>
                                             </td>
                                             <td>
@@ -349,42 +350,40 @@ const Assets = () => {
                                                         <Package size={20} />
                                                     </div>
                                                     <div className="asset-main">
-                                                        <span className="asset-name">{asset.name}</span>
+                                                        <span className="asset-name">{asset?.name || 'Unnamed'}</span>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td>
                                                 <div className="tag-cell">
                                                     <Tag size={14} />
-                                                    <span>{asset.tag}</span>
+                                                    <span>{asset?.tag || '-'}</span>
                                                 </div>
                                             </td>
                                             <td>
                                                 <div className="receiver-cell">
-                                                    <span className="receiver-name">{asset.receiverName || '-'}</span>
+                                                    <span className="receiver-name">{asset?.receiverName || '-'}</span>
                                                 </div>
                                             </td>
                                             <td>
                                                 <div className="vendor-cell">
-                                                    {asset.vendor ? (
-                                                        <>
-                                                            <span className="vendor-name">{asset.vendor.vendorName}</span>
-                                                        </>
+                                                    {asset?.vendor ? (
+                                                        <span className="vendor-name">{asset.vendor.vendorName || 'N/A'}</span>
                                                     ) : (
                                                         <span className="text-muted">No vendor</span>
                                                     )}
                                                 </div>
                                             </td>
                                             <td>
-                                                <div className={`status-badge ${(asset.exchangeType || 'unknown').toLowerCase()}`}>
+                                                <div className={`status-badge ${(asset?.exchangeType || 'unknown').toLowerCase()}`}>
                                                     <span className="dot"></span>
-                                                    <span>{asset.exchangeType || 'N/A'}</span>
+                                                    <span>{asset?.exchangeType || 'N/A'}</span>
                                                 </div>
                                             </td>
                                             <td>
                                                 <div className="media-cell">
                                                     <ImageIcon size={14} />
-                                                    <span>{asset.photos?.length || 0}</span>
+                                                    <span>{asset?.photos?.length || 0}</span>
                                                 </div>
                                             </td>
                                             <td className="text-center">
@@ -408,7 +407,7 @@ const Assets = () => {
                                 ) : (
                                     <tr>
                                         <td colSpan="9" className="text-center py-8 text-muted">
-                                            No assets found in the database.
+                                            No assets found matching your criteria.
                                         </td>
                                     </tr>
                                 )}

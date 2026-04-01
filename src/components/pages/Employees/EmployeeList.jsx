@@ -1,21 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Building2,
-  Mail,
-  Phone,
-  Calendar,
-  ExternalLink,
-  ShieldCheck,
-  ShieldAlert,
   Eye,
   Edit3,
   Trash2,
   Search,
   Filter,
   X,
-  ChevronDown,
   CheckCircle2,
-  XCircle
 } from 'lucide-react';
 import { hasWorkingDaysPassed } from '../../../utils/dateUtils';
 import AddEmployeeModal from './AddEmployeeModal';
@@ -23,17 +14,15 @@ import EditEmployeeModal from './EditEmployeeModal';
 import ViewEmployeeModal from './ViewEmployeeModal';
 import apiService from '../../../services/api';
 import Toast from '../../common/Toast';
-import { normalizeEmployee } from '../../../utils/normalizeEmployee';
 import { buildFileUrl } from '../../../utils/file';
-import { API_BASE_URL } from '../../../config/api';
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-
 
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,96 +40,44 @@ const EmployeeList = () => {
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   const getDeptName = d => d.deptName || d.name || d.departmentName || d;
-  const getDeptCode = d => d.deptCode || d.deptId || d.id;
   const getRoleName = r => r.roleName || r.name || r;
-  const getRoleCode = r => r.roleCode || r.roleId || r.id;
   const getEntityName = e => e.entityName || e.name || e;
-  const getEntityCode = e => e.entityCode || e.entityId || e.id;
 
-  const formatDate = (date) => {
-    if (!date) return '-';
-    // Handle Java LocalDate array [year, month, day]
-    if (Array.isArray(date)) {
-      const [year, month, day] = date;
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-    // Handle string formatting - be smart about timestamps vs calendar dates
-    if (typeof date === 'string') {
-      if (date.includes('T')) {
-        // If it's a timestamp, try to parse it properly (treating as UTC if no offset given)
-        let d;
-        if (date.endsWith('Z')) {
-          d = new Date(date);
-        } else {
-          // Force UTC interpretation to prevent 1-day shift in local parse
-          d = new Date(date + 'Z');
-        }
-
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('en-CA'); // YYYY-MM-DD locally
-        }
-        return date.split('T')[0];
-      }
-      return date;
-    }
-    return String(date);
+  // Ensure data is an array (for departments/roles/entities which aren't auto-normalized)
+  const ensureArray = (data, context) => {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.content)) return data.content;
+    console.warn(`⚠️ [${context}] returned unexpected shape:`, data);
+    return [];
   };
 
-  const formatDateTime = (date) => {
-    if (!date) return { date: '-', time: '-' };
+  /**
+   * Decorate a normalized employee with UI-only computed fields.
+   * Input is ALREADY normalized by the API layer — no field guessing needed.
+   */
+  const decorateEmployee = (emp) => {
+    if (!emp) return null;
 
-    // Handle Java LocalDateTime array [year, month, day, hour, minute]
-    if (Array.isArray(date)) {
-      const [year, month, day, hour, minute] = date;
-      return {
-        date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-        time: `${String(hour || 0).padStart(2, '0')}:${String(minute || 0).padStart(2, '0')}`
-      };
-    }
+    const status = (emp?.status || 'unknown').toLowerCase();
 
-    if (typeof date === 'string') {
-      if (date.includes('T')) {
-        let d;
-        if (date.endsWith('Z')) {
-          d = new Date(date);
-        } else {
-          d = new Date(date + 'Z');
-        }
-
-        if (!isNaN(d.getTime())) {
-          return {
-            date: d.toLocaleDateString('en-CA'), // YYYY-MM-DD
-            time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) // HH:MM
-          };
-        }
-      }
-      const parts = date.split(/[T ]/);
-      return {
-        date: parts[0] || '-',
-        time: parts[1] ? parts[1].substring(0, 5) : '-'
-      };
-    }
-
-    return { date: '-', time: '-' };
-  };
-
-
-  // --- COMPONENT SPECIFIC UI EXTENSIONS ---
-  const decorateEmployee = (normalized, raw) => {
-    if (!normalized) return null;
-
-    // 1. Dynamic ID Logic
-    let displayId = normalized.employeeId;
-    if (raw.status?.toLowerCase() === 'active' && hasWorkingDaysPassed(normalized.onboardingDate, 10)) {
+    // Dynamic ID display
+    let displayId = emp?.id ?? "N/A";
+    if (status === 'active' && hasWorkingDaysPassed(emp.onboardingDate, 10)) {
       displayId = `EMP/${displayId}`;
     }
 
-    // 2. Asset Syncing
-    const assignments = JSON.parse(localStorage.getItem('asset_assignments') || '[]');
-    const myAssignment = assignments.find(a => a.employeeName === normalized.name);
+    // Asset syncing from localStorage
+    let assignments = [];
+    try {
+      assignments = JSON.parse(localStorage.getItem('asset_assignments') || '[]');
+    } catch (e) { /* ignore */ }
+    const myAssignment = Array.isArray(assignments)
+      ? assignments.find(a => a.employeeName === emp.name)
+      : null;
 
     return {
-      ...normalized,
+      ...emp,
+      status,
       displayId,
       hasAssets: !!myAssignment,
       assignedAssetName: myAssignment ? myAssignment.assetName : null,
@@ -148,90 +85,37 @@ const EmployeeList = () => {
     };
   };
 
-  // Fetch all necessary data
   const fetchData = async () => {
-    const ensureArray = (data, context) => {
-      if (Array.isArray(data)) return data;
-      if (data && typeof data === 'object') {
-        if (Array.isArray(data.data)) return data.data;
-        if (Array.isArray(data.content)) return data.content;
-        if (Array.isArray(data.employees)) return data.employees;
-        if (Array.isArray(data.employeeList)) return data.employeeList;
-      }
-      console.warn(`[DEBUG] ${context} response is not an array:`, data);
-      return [];
-    };
-
     try {
-      console.log("[DEBUG] Fetching master data from port 8090...");
-      let deptRes, roleRes, entRes, empRes;
-      try {
-        [deptRes, roleRes, entRes, empRes] = await Promise.all([
-          apiService.getDepartments(),
-          apiService.getRoles(),
-          apiService.getEntities(),
-          apiService.getEmployeesWithDetails()
-        ]);
-      } catch (detailError) {
-        console.warn("[DEBUG] Detailed employee fetch failed, trying lightweight fallback...", detailError);
-        try {
-          [deptRes, roleRes, entRes, empRes] = await Promise.all([
-            apiService.getDepartments(),
-            apiService.getRoles(),
-            apiService.getEntities(),
-            apiService.getEmployees()
-          ]);
-        } catch (fallbackError) {
-          console.error("🔥 FATAL: Backend /employees endpoint completely down or recursive:", fallbackError);
-          [deptRes, roleRes, entRes] = await Promise.all([
-            apiService.getDepartments(),
-            apiService.getRoles(),
-            apiService.getEntities()
-          ]);
-          empRes = []; // Return empty array to keep UI alive
-        }
-      }
+      setLoading(true);
 
-      console.log("[DEBUG] Raw employee response:", empRes);
+      const [deptRes, roleRes, entRes, empList] = await Promise.all([
+        apiService.getDepartments(),
+        apiService.getRoles(),
+        apiService.getEntities(),
+        apiService.getEmployees(0, 50)
+      ]);
 
-      const freshDepts = ensureArray(deptRes, 'Departments');
-      const freshRoles = ensureArray(roleRes, 'Roles');
-      const freshEntities = ensureArray(entRes, 'Entities');
-      const freshEmps = ensureArray(empRes, 'Employees');
+      setDepartments(ensureArray(deptRes, 'Departments'));
+      setRoles(ensureArray(roleRes, 'Roles'));
+      setEntities(ensureArray(entRes, 'Entities'));
 
-      setDepartments(freshDepts);
-      setRoles(freshRoles);
-      setEntities(freshEntities);
-
-      // Pass fresh master lists to normalizeEmployee to avoid state stale-ness
-      console.log(`[DEBUG] Normalizing ${freshEmps.length} employees...`);
-      const normalized = freshEmps.map(emp => {
-        const norm = normalizeEmployee(emp, freshDepts, freshRoles, freshEntities);
-        return decorateEmployee(norm, emp);
-      }).filter(Boolean);
-
-      setEmployees(normalized);
-
-      if (freshEmps.length > 0 && normalized.length === 0) {
-        console.error("[DEBUG] Employees were fetched but all failed normalization!");
-      }
-
+      // empList is guaranteed to be an array by the API layer (safeGet returns [])
+      const decorated = (empList || []).map(decorateEmployee).filter(Boolean);
+      setEmployees(decorated);
+      setLoading(false);
     } catch (e) {
-      console.error('Failed to fetch data:', e);
-      setToast({
-        show: true,
-        message: 'Connection Failed: Please ensure backend is running at 192.168.1.13:8090',
-        type: 'error'
-      });
+      console.error('❌ [fetchData] Unexpected error:', e);
+      setLoading(false);
+      setToast({ show: true, message: `System error. Please try again.`, type: 'error' });
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const handleAddEmployee = async (newEmployee) => {
     try {
+<<<<<<< HEAD
       const createdEmployee = await apiService.createEmployee(newEmployee);
       console.log("[DEBUG] Backend Response (createEmployee):", createdEmployee);
 
@@ -250,28 +134,28 @@ const EmployeeList = () => {
         return [...prev, decorated];
       });
 
+=======
+      // API returns pre-normalized employee
+      const created = await apiService.createEmployee(newEmployee);
+      setEmployees(prev => [...prev, decorateEmployee(created)]);
+>>>>>>> 156c736 (commit)
       setIsAddModalOpen(false);
       setToast({
         show: true,
-        message: `Employee added successfully! Generated Code: ${normalized.empCode || 'N/A'}. An onboarding link has been sent to their email.`,
+        message: `Employee added successfully! Code: ${created.empCode || 'N/A'}. Onboarding link sent.`,
         type: 'success'
       });
     } catch (error) {
-      console.error('Failed to create employee:', error);
-      setToast({
-        show: true,
-        message: 'Failed to add employee: ' + error.message,
-        type: 'error'
-      });
+      setToast({ show: true, message: 'Failed to add employee: ' + error.message, type: 'error' });
     }
   };
 
   const handleUpdateEmployee = async (updatedEmployee) => {
     try {
-      // Ensure we have the ID from the selected employee
-      const empId = selectedEmployee.id || selectedEmployee.employeeId;
+      const empId = selectedEmployee.id;
+      // API returns pre-normalized employee
       const updated = await apiService.updateEmployee(empId, updatedEmployee);
-      setEmployees(prev => prev.map(emp => (emp.id || emp.employeeId) === empId ? decorateEmployee(normalizeEmployee(updated, departments, roles, entities), updated) : emp));
+      setEmployees(prev => prev.map(emp => emp.id === empId ? decorateEmployee(updated) : emp));
       setIsEditModalOpen(false);
       setSelectedEmployee(null);
       setToast({ show: true, message: 'Employee updated successfully!', type: 'success' });
@@ -282,6 +166,7 @@ const EmployeeList = () => {
 
   const handleFinalReview = async (emp, status) => {
     try {
+<<<<<<< HEAD
       const empId = emp.id || emp.employeeId;
       let remarks = 'All documents verified';
 
@@ -302,27 +187,36 @@ const EmployeeList = () => {
         type: 'success'
       });
 
+=======
+      await apiService.reviewOnboarding({
+        employeeId: emp.id,
+        status: 'APPROVED',
+        remarks: 'Self-Approved',
+        rejectedDocuments: []
+      });
+      setToast({ show: true, message: 'Onboarding approved successfully!', type: 'success' });
+>>>>>>> 156c736 (commit)
       setIsViewModalOpen(false);
-      fetchData(); // Refresh list
+      fetchData();
     } catch (error) {
+<<<<<<< HEAD
       console.error('Failed to process final review:', error);
       setToast({
         show: true,
         message: 'Failed to process review: ' + error.message,
         type: 'error'
       });
+=======
+      setToast({ show: true, message: 'Failed to approve: ' + error.message, type: 'error' });
+>>>>>>> 156c736 (commit)
     }
   };
 
-  /* Removed Add Dept/Role/Entity handlers as they are moved to Settings */
-
-
-
   const handleDeleteEmployee = async (id) => {
-    if (window.confirm('Are you sure you want to deactivate this employee? Their data will remain but their status will be set to Inactive.')) {
+    if (window.confirm('Are you sure you want to deactivate this employee?')) {
       try {
         await apiService.deactivateEmployee(id);
-        fetchData(); // Refresh list to see updated status
+        fetchData();
         setToast({ show: true, message: 'Employee deactivated successfully!', type: 'success' });
       } catch (error) {
         setToast({ show: true, message: 'Failed to deactivate: ' + error.message, type: 'error' });
@@ -331,12 +225,13 @@ const EmployeeList = () => {
   };
 
   const handleViewProfile = async (emp) => {
-    // 🕵️ Fetch detailed employee data from standard Employees API
     try {
-      const empId = emp.id || emp.employeeId;
-      if (empId) {
-        const fullDetails = await apiService.getEmployeeDetail(empId);
+      if (emp.id) {
+        setToast({ show: true, message: 'Loading details...', type: 'info' });
+        // API returns pre-normalized detail
+        const fullDetails = await apiService.getEmployeeDetail(emp.id);
         if (fullDetails) {
+<<<<<<< HEAD
           // 🚀 [SYC FIX] Update the list state with the detailed data
           // This ensures that extra data (like photos) fetched in details is preserved in list
           const normalized = normalizeEmployee(fullDetails, departments, roles, entities);
@@ -344,20 +239,37 @@ const EmployeeList = () => {
           setEmployees(prev => prev.map(e => (e.id || e.employeeId) === empId ? decorated : e));
           
           setSelectedEmployee(fullDetails);
+=======
+          setSelectedEmployee(decorateEmployee(fullDetails));
+>>>>>>> 156c736 (commit)
           setIsViewModalOpen(true);
+          setToast({ show: false });
           return;
         }
       }
     } catch (e) {
-      console.warn("Detailed employee fetch failed, falling back to list data:", e);
+      console.warn('Detail fetch failed, using list data:', e);
+      setToast({ show: true, message: 'Showing basic info (detail fetch failed)', type: 'warning' });
     }
-
-    // Fallback: Use list data if detail fetch fails
     setSelectedEmployee(emp);
     setIsViewModalOpen(true);
   };
 
-  const handleEditEmployee = (emp) => {
+  const handleEditEmployee = async (emp) => {
+    try {
+      if (emp.id) {
+        setToast({ show: true, message: 'Loading details...', type: 'info' });
+        const fullDetails = await apiService.getEmployeeDetail(emp.id);
+        if (fullDetails) {
+          setSelectedEmployee(decorateEmployee(fullDetails));
+          setIsEditModalOpen(true);
+          setToast({ show: false });
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Edit context fetch failed:', e);
+    }
     setSelectedEmployee(emp);
     setIsEditModalOpen(true);
   };
@@ -366,6 +278,7 @@ const EmployeeList = () => {
     const emp = selectedEmployee;
     if (!emp) return;
 
+<<<<<<< HEAD
     // Ask for confirmation first
     if (!window.confirm(`Are you sure you want to reject the "${label}" for ${emp.name}? This will trigger a re-onboarding email where this field will be empty.`)) {
       return;
@@ -394,29 +307,40 @@ const EmployeeList = () => {
     } catch (error) {
       console.error('Failed to reject document:', error);
       setToast({ show: true, message: 'Failed to reject document: ' + error.message, type: 'error' });
+=======
+    if (window.confirm(`Are you sure you want to reject "${label}" for ${emp.name}?`)) {
+      try {
+        const entityId = (doc.id && !isNaN(doc.id)) ? Number(doc.id) : null;
+        await apiService.rejectOnboardingDocument(emp.id, doc.entityType, entityId);
+        setToast({ show: true, message: `Document "${label}" rejected. Re-onboarding email sent.`, type: 'success' });
+        fetchData();
+        setIsViewModalOpen(false);
+      } catch (error) {
+        setToast({ show: true, message: 'Failed to reject document: ' + error.message, type: 'error' });
+      }
+>>>>>>> 156c736 (commit)
     }
   };
 
-  const filteredEmployees = (Array.isArray(employees) ? employees : []).filter(emp => {
+  // ── FILTERING (uses flat contract fields directly) ──
+  const filteredEmployees = (employees || []).filter(emp => {
     if (!emp) return false;
+    const term = (searchTerm || "").toLowerCase();
     const matchesSearch =
-      (emp.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      String(emp.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      String(emp.empCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (emp.roleName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (emp.deptName || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (emp.name || "").toLowerCase().includes(term) ||
+      String(emp.id || "").toLowerCase().includes(term) ||
+      (emp.empCode || "").toLowerCase().includes(term) ||
+      (emp.roleName || "").toLowerCase().includes(term) ||
+      (emp.deptName || "").toLowerCase().includes(term);
     const matchesDept = activeFilters.department === 'All' || emp.deptName === activeFilters.department;
-    const matchesStatus = activeFilters.status === 'All' || emp.status?.toLowerCase() === activeFilters.status.toLowerCase();
+    const matchesStatus = activeFilters.status === 'All' || (emp.status || "").toLowerCase() === (activeFilters.status || "").toLowerCase();
     const matchesEntity = activeFilters.entity === 'All' || emp.entityName === activeFilters.entity;
     const matchesAssignment = activeFilters.assignmentStatus === 'All' ||
       (activeFilters.assignmentStatus === 'Assigned' ? emp.hasAssets : !emp.hasAssets);
     return matchesSearch && matchesDept && matchesStatus && matchesEntity && matchesAssignment;
   });
 
-  const clearFilter = (key) => {
-    setActiveFilters(prev => ({ ...prev, [key]: 'All' }));
-  };
-
+  const clearFilter = (key) => setActiveFilters(prev => ({ ...prev, [key]: 'All' }));
   const hasActiveFilters = Object.values(activeFilters).some(v => v !== 'All');
 
   const statusesList = ['All', 'Active', 'Onboarding', 'Inactive'];
@@ -434,8 +358,6 @@ const EmployeeList = () => {
           <button className="primary-btn" onClick={() => setIsAddModalOpen(true)}>Add Employee</button>
         </div>
       </header>
-
-      {/* Modals for Dept, Role, Entity moved to Settings module */}
 
       <ViewEmployeeModal
         isOpen={isViewModalOpen}
@@ -456,10 +378,7 @@ const EmployeeList = () => {
 
       <EditEmployeeModal
         isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedEmployee(null);
-        }}
+        onClose={() => { setIsEditModalOpen(false); setSelectedEmployee(null); }}
         onUpdate={handleUpdateEmployee}
         employee={selectedEmployee}
         departments={departments}
@@ -472,8 +391,6 @@ const EmployeeList = () => {
         type={toast.type}
         onClose={() => setToast({ ...toast, show: false })}
       />
-
-
 
       <div className="table-container card">
         <div className="table-controls">
@@ -509,41 +426,25 @@ const EmployeeList = () => {
                   <div className="popover-body">
                     <div className="filter-item">
                       <label>Department</label>
-                      <select
-                        value={activeFilters.department}
-                        onChange={(e) => setActiveFilters(prev => ({ ...prev, department: e.target.value }))}
-                      >
+                      <select value={activeFilters.department} onChange={(e) => setActiveFilters(prev => ({ ...prev, department: e.target.value }))}>
                         {departmentsList.map(dept => <option key={dept} value={dept}>{dept}</option>)}
                       </select>
                     </div>
-
                     <div className="filter-item">
                       <label>Entity</label>
-                      <select
-                        value={activeFilters.entity}
-                        onChange={(e) => setActiveFilters(prev => ({ ...prev, entity: e.target.value }))}
-                      >
+                      <select value={activeFilters.entity} onChange={(e) => setActiveFilters(prev => ({ ...prev, entity: e.target.value }))}>
                         {entitiesList.map(ent => <option key={ent} value={ent}>{ent}</option>)}
                       </select>
                     </div>
-
                     <div className="filter-item">
                       <label>Status</label>
-                      <select
-                        value={activeFilters.status}
-                        onChange={(e) => setActiveFilters(prev => ({ ...prev, status: e.target.value }))}
-                      >
+                      <select value={activeFilters.status} onChange={(e) => setActiveFilters(prev => ({ ...prev, status: e.target.value }))}>
                         {statusesList.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
-
-
                     <div className="filter-item">
                       <label>Asset Assignment</label>
-                      <select
-                        value={activeFilters.assignmentStatus}
-                        onChange={(e) => setActiveFilters(prev => ({ ...prev, assignmentStatus: e.target.value }))}
-                      >
+                      <select value={activeFilters.assignmentStatus} onChange={(e) => setActiveFilters(prev => ({ ...prev, assignmentStatus: e.target.value }))}>
                         <option value="All">All</option>
                         <option value="Assigned">Assigned</option>
                         <option value="Unassigned">Unassigned</option>
@@ -552,15 +453,8 @@ const EmployeeList = () => {
                   </div>
 
                   <div className="popover-footer">
-                    <button
-                      className="text-btn"
-                      onClick={() => setActiveFilters({ department: 'All', status: 'All', entity: 'All', assignmentStatus: 'All' })}
-                    >
-                      Reset All
-                    </button>
-                    <button className="apply-btn" onClick={() => setShowFilters(false)}>
-                      Apply
-                    </button>
+                    <button className="text-btn" onClick={() => setActiveFilters({ department: 'All', status: 'All', entity: 'All', assignmentStatus: 'All' })}>Reset All</button>
+                    <button className="apply-btn" onClick={() => setShowFilters(false)}>Apply</button>
                   </div>
                 </div>
               )}
@@ -568,29 +462,20 @@ const EmployeeList = () => {
           </div>
         </div>
 
-        {
-          hasActiveFilters && (
-            <div className="active-filters">
-              {Object.entries(activeFilters).map(([key, value]) => (
-                value !== 'All' && (
-                  <div key={key} className="filter-badge">
-                    <span className="badge-label">{key}:</span>
-                    <span className="badge-value">{value}</span>
-                    <button onClick={() => clearFilter(key)}>
-                      <X size={12} />
-                    </button>
-                  </div>
-                )
-              ))}
-              <button
-                className="clear-all-link"
-                onClick={() => setActiveFilters({ department: 'All', status: 'All', entity: 'All', assignmentStatus: 'All' })}
-              >
-                Clear all
-              </button>
-            </div>
-          )
-        }
+        {hasActiveFilters && (
+          <div className="active-filters">
+            {Object.entries(activeFilters).map(([key, value]) => (
+              value !== 'All' && (
+                <div key={key} className="filter-badge">
+                  <span className="badge-label">{key}:</span>
+                  <span className="badge-value">{value}</span>
+                  <button onClick={() => clearFilter(key)}><X size={12} /></button>
+                </div>
+              )
+            ))}
+            <button className="clear-all-link" onClick={() => setActiveFilters({ department: 'All', status: 'All', entity: 'All', assignmentStatus: 'All' })}>Clear all</button>
+          </div>
+        )}
 
         <div className="table-wrapper">
           <table className="employee-table">
@@ -610,6 +495,7 @@ const EmployeeList = () => {
               </tr>
             </thead>
             <tbody>
+<<<<<<< HEAD
               {filteredEmployees.map((emp, index) => (
                 <tr key={`${emp.id || emp.employeeId || 'temp'}-${index}-${emp.email}`}>
                   <td className="emp-id-cell">{emp.employeeId || emp.id || '-'}</td>
@@ -630,36 +516,62 @@ const EmployeeList = () => {
                         ) : (
                           (emp.name || '').split(' ').map(n => n[0]).join('')
                         )}
+=======
+              {filteredEmployees.length > 0 ? (
+                filteredEmployees.map((emp) => (
+                  <tr key={emp?.id || Math.random()}>
+                    <td className="emp-id-cell">{emp?.id || '-'}</td>
+                    <td className="emp-code-cell">{emp?.empCode || '-'}</td>
+                    <td className="emp-name-cell">
+                      <div className="name-wrapper">
+                        <div className="emp-thumbnail">
+                          {emp?.photoPath ? (
+                            <img
+                              src={buildFileUrl(emp.photoPath)}
+                              alt={emp.name}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerText = (emp?.name || "U").split(' ').map(n => n[0]).join('');
+                              }}
+                            />
+                          ) : (
+                            (emp?.name || "Unknown").split(' ').map(n => n[0]).join('')
+                          )}
+                        </div>
+                        <span>{emp?.name || 'Unknown'}</span>
+>>>>>>> 156c736 (commit)
                       </div>
-                      <span>{emp.name}</span>
-                    </div>
-                  </td>
-                  <td>{emp.roleName}</td>
-                  <td>{emp.deptName}</td>
-                  <td>{emp.entityName}</td>
-                  <td className="no-wrap">{emp.onboardingDate}</td>
-                  <td>{emp.email}</td>
-                  <td className="no-wrap">{emp.phone}</td>
-                  <td>
-                    <span className={`badge badge-${emp.status.toLowerCase()}`}>
-                      {emp.status}
-                    </span>
-                  </td>
-                  <td className="text-center">
-                    <div className="action-buttons">
-                      <button className="icon-btn-v3" onClick={() => handleViewProfile(emp)} title="View Profile">
-                        <Eye size={16} />
-                      </button>
-                      <button className="icon-btn-v3" onClick={() => handleEditEmployee(emp)} title="Edit Employee">
-                        <Edit3 size={16} />
-                      </button>
-                      <button className="icon-btn-v3 danger" onClick={() => handleDeleteEmployee(emp.id || emp.employeeId)} title="Deactivate Employee">
-                        <Trash2 size={16} />
-                      </button>
+                    </td>
+                    <td>{emp?.roleName || '-'}</td>
+                    <td>{emp?.deptName || '-'}</td>
+                    <td>{emp?.entityName || '-'}</td>
+                    <td className="no-wrap">{emp?.onboardingDate || '-'}</td>
+                    <td>{emp?.email || '-'}</td>
+                    <td className="no-wrap">{emp?.phone || '-'}</td>
+                    <td>
+                      <span className={`badge badge-${(emp?.status || 'unknown').toLowerCase()}`}>
+                        {emp?.status || 'N/A'}
+                      </span>
+                    </td>
+                    <td className="text-center">
+                      <div className="action-buttons">
+                        <button className="icon-btn-v3" onClick={() => handleViewProfile(emp)} title="View Profile"><Eye size={16} /></button>
+                        <button className="icon-btn-v3" onClick={() => handleEditEmployee(emp)} title="Edit Employee"><Edit3 size={16} /></button>
+                        <button className="icon-btn-v3 danger" onClick={() => handleDeleteEmployee(emp.id)} title="Deactivate Employee"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="11" className="text-center" style={{ padding: '3rem' }}>
+                    <div className="empty-state">
+                      <p>No employees found matching your criteria.</p>
+                      {searchTerm && <button className="text-btn" onClick={() => setSearchTerm('')}>Clear Search</button>}
                     </div>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

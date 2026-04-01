@@ -1,15 +1,19 @@
 import React from 'react';
 import { X, User as UserIcon, Building2, Mail, Calendar, Phone, ShieldCheck, Tag, Briefcase, MapPin, CheckCircle2, XCircle, Eye, FileText } from 'lucide-react';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { normalizeEmployee, getFileUrl } from '../../../utils/normalizeEmployee';
 import { buildFileUrl } from '../../../utils/file';
 =======
 import { normalizeEmployee } from '../../../utils/normalizeEmployee';
+=======
+>>>>>>> 156c736 (commit)
 import { buildFileUrl, buildAbsoluteFileUrl } from '../../../utils/file';
 >>>>>>> 62ebbba (commit)
 import { API_BASE_URL } from '../../../config/api';
 
 const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocument }) => {
+<<<<<<< HEAD
     React.useEffect(() => {
         if (isOpen && employee) {
             console.log("[DEBUG] ViewEmployeeModal opened with raw employee:", employee);
@@ -39,10 +43,12 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
         }
     }, [isOpen, employee]);
 
+=======
+>>>>>>> 156c736 (commit)
     if (!isOpen || !employee) return null;
 
-    // Normalize the employee to ensure identityProofs is always a proper array
-    const emp = normalizeEmployee(employee);
+    // Employee is ALREADY normalized by the API layer — use flat fields directly.
+    const emp = employee;
 
     const handleViewDocument = (url) => {
         if (!url) return;
@@ -182,9 +188,6 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                         <div className="profile-badge">
                             {emp.photoPath && emp.photoPath !== "NOT_UPLOADED" ? (() => {
                                 const photoUrl = buildFileUrl(emp.photoPath);
-                                // TEMPORARY TEST: hardcode to confirm path resolution vs backend issue
-                                // const photoUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200';
-                                console.log("Rendering photo →", photoUrl, "| raw photoPath:", emp.photoPath);
                                 return (
                                     <img
                                         src={photoUrl}
@@ -233,7 +236,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                         <div className="header-text">
                             <h2>{emp.name}</h2>
                             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                                <span className="emp-id-tag">ID: {emp.employeeId || emp.id}</span>
+                                <span className="emp-id-tag">ID: {emp.id}</span>
                                 {emp.empCode && (
                                     <span className="emp-id-tag" style={{ background: 'rgba(255,255,255,0.2)' }}>Code: {emp.empCode}</span>
                                 )}
@@ -250,7 +253,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                         <span className={`badge-large badge-${(emp.status || 'Active').toLowerCase()}`}>
                             {emp.status || 'Active'}
                         </span>
-                        <span className="entity-label">{emp.entityName || emp.entity || 'N/A'}</span>
+                        <span className="entity-label">{emp.entityName || '-'}</span>
                     </div>
 
                     <div className="info-tabs">
@@ -261,21 +264,21 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                     <Briefcase size={14} />
                                     <div>
                                         <label>Role</label>
-                                        <span>{emp.roleName || emp.role || '-'}</span>
+                                        <span>{emp.roleName || '-'}</span>
                                     </div>
                                 </div>
                                 <div className="detail-item-compact">
                                     <Building2 size={14} />
                                     <div>
                                         <label>Department</label>
-                                        <span>{emp.deptName || emp.department || '-'}</span>
+                                        <span>{emp.deptName || '-'}</span>
                                     </div>
                                 </div>
                                 <div className="detail-item-compact">
                                     <Building2 size={14} />
                                     <div>
                                         <label>Entity</label>
-                                        <span>{emp.entityName || emp.entity || 'N/A'}</span>
+                                        <span>{emp.entityName || '-'}</span>
                                     </div>
                                 </div>
                                 <div className="detail-item-compact">
@@ -309,7 +312,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                     <Calendar size={14} />
                                     <div>
                                         <label>Date of Birth</label>
-                                        <span>{emp.dateOfBirth || emp.dob || '-'}</span>
+                                        <span>{emp.dateOfBirth || '-'}</span>
                                     </div>
                                 </div>
                                 <div className="detail-item-compact">
@@ -453,7 +456,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                     <Phone size={14} />
                                     <div>
                                         <label>Phone</label>
-                                        <span>{emp.phoneNumber || emp.phone || '-'}</span>
+                                        <span>{emp.phone || '-'}</span>
                                     </div>
                                 </div>
                                 <div className="detail-item-compact full-width">

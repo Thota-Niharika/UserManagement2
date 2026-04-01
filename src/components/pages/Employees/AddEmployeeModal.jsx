@@ -113,7 +113,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
                                     required
                                 >
                                     <option value="">Select Department</option>
-                                    {departments.map(dept => (
+                                    {(departments || []).map(dept => (
                                         <option key={getDeptCode(dept)} value={getDeptCode(dept)}>
                                             {getDeptName(dept)}
                                         </option>
@@ -129,7 +129,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
                                     required
                                 >
                                     <option value="">Select Role</option>
-                                    {roles.map(role => (
+                                    {(roles || []).map(role => (
                                         <option key={getRoleCode(role)} value={getRoleCode(role)}>
                                             {getRoleName(role)}
                                         </option>
@@ -148,7 +148,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
                                     required
                                 >
                                     <option value="">Select Entity</option>
-                                    {entities.map(ent => (
+                                    {(entities || []).map(ent => (
                                         <option key={getEntityCode(ent)} value={getEntityCode(ent)}>
                                             {getEntityName(ent)}
                                         </option>
