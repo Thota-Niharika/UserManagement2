@@ -1,19 +1,10 @@
 import React from 'react';
 import { X, User as UserIcon, Building2, Mail, Calendar, Phone, ShieldCheck, Tag, Briefcase, MapPin, CheckCircle2, XCircle, Eye, FileText } from 'lucide-react';
-<<<<<<< HEAD
-<<<<<<< HEAD
-import { normalizeEmployee, getFileUrl } from '../../../utils/normalizeEmployee';
-import { buildFileUrl } from '../../../utils/file';
-=======
 import { normalizeEmployee } from '../../../utils/normalizeEmployee';
-=======
->>>>>>> 156c736 (commit)
-import { buildFileUrl, buildAbsoluteFileUrl } from '../../../utils/file';
->>>>>>> 62ebbba (commit)
+import { buildFileUrl } from '../../../utils/file';
 import { API_BASE_URL } from '../../../config/api';
 
 const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocument }) => {
-<<<<<<< HEAD
     React.useEffect(() => {
         if (isOpen && employee) {
             console.log("[DEBUG] ViewEmployeeModal opened with raw employee:", employee);
@@ -42,9 +33,6 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
             }
         }
     }, [isOpen, employee]);
-
-=======
->>>>>>> 156c736 (commit)
     if (!isOpen || !employee) return null;
 
     // Employee is ALREADY normalized by the API layer — use flat fields directly.
@@ -194,13 +182,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                         alt={emp.name}
                                         onError={(e) => {
                                             const target = e.target;
-<<<<<<< HEAD
                                             const photoErrState = target.dataset.photoErrState || '0';
-=======
-                                            if (!target) return;
-                                            const photoErrState = target.dataset.photoErrState || '0';
-
->>>>>>> 62ebbba (commit)
                                             if (photoErrState === '0') {
                                                 target.dataset.photoErrState = '1';
                                                 const currentSrc = target.src || '';
@@ -359,13 +341,8 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                     <div>
                                         <label>Aadhar Number</label>
                                         <span className="font-mono text-primary">{emp.aadharNumber || '-'}</span>
-<<<<<<< HEAD
                                         {emp.aadharPath && (
                                             <a href="#" className="view-cert-link" onClick={(e) => { e.preventDefault(); window.open(buildFileUrl(emp.aadharPath), '_blank'); }}>
-=======
-                                        {emp.aadharPath && emp.aadharPath !== "NOT_UPLOADED" && (
-                                            <a href="#" className="view-cert-link" onClick={(e) => { e.preventDefault(); handleViewDocument(buildFileUrl(emp.aadharPath)); }}>
->>>>>>> 62ebbba (commit)
                                                 <Eye size={12} /> View Proof
                                             </a>
                                         )}
@@ -595,13 +572,8 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                                         <Eye size={12} /> View Certificate
                                                     </a>
                                                 )}
-<<<<<<< HEAD
                                                 {/* {emp.ssc.marksMemoPath && (
-                                                    <a href="#" className="view-cert-link" onClick={(e) => { e.preventDefault(); window.open(getFileUrl(emp.ssc.marksMemoPath), '_blank'); }}>
-=======
-                                                {emp.ssc.marksMemoPath && emp.ssc.marksMemoPath !== "NOT_UPLOADED" && (
-                                                    <a href="#" className="view-cert-link" onClick={(e) => { e.preventDefault(); handleViewDocument(buildFileUrl(emp.ssc.marksMemoPath)); }}>
->>>>>>> 62ebbba (commit)
+                                                    <a href="#" className="view-cert-link" onClick={(e) => { e.preventDefault(); window.open(buildFileUrl(emp.ssc.marksMemoPath), '_blank'); }}>
                                                         <Eye size={12} /> View Marks Memo
                                                     </a>
                                                 )} */}
@@ -620,13 +592,8 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                                         <Eye size={12} /> View Certificate
                                                     </a>
                                                 )}
-<<<<<<< HEAD
                                                 {/* {emp.intermediate.marksMemoPath && (
-                                                    <a href="#" className="view-cert-link" onClick={(e) => { e.preventDefault(); window.open(getFileUrl(emp.intermediate.marksMemoPath), '_blank'); }}>
-=======
-                                                {emp.intermediate.marksMemoPath && emp.intermediate.marksMemoPath !== "NOT_UPLOADED" && (
-                                                    <a href="#" className="view-cert-link" onClick={(e) => { e.preventDefault(); handleViewDocument(buildFileUrl(emp.intermediate.marksMemoPath)); }}>
->>>>>>> 62ebbba (commit)
+                                                    <a href="#" className="view-cert-link" onClick={(e) => { e.preventDefault(); window.open(buildFileUrl(emp.intermediate.marksMemoPath), '_blank'); }}>
                                                         <Eye size={12} /> View Marks Memo
                                                     </a>
                                                 )} */}

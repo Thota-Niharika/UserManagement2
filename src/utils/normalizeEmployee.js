@@ -148,6 +148,57 @@ const extractName = (val, ...nameKeys) => {
     return '';
 };
 
+/**
+ * Scavenge a primitive value from an object given multiple potential keys or dot-notated paths.
+ * Returns the first non-null/non-undefined value found.
+ */
+export const scavengeValue = (obj, ...paths) => {
+    if (!obj || typeof obj !== 'object') return null;
+
+    for (const path of paths) {
+        // Handle dot-notation: "panProof.panNumber"
+        if (typeof path === 'string' && path.includes('.')) {
+            const parts = path.split('.');
+            let current = obj;
+            for (const part of parts) {
+                current = current ? current[part] : undefined;
+            }
+            if (current !== undefined && current !== null) return current;
+            continue;
+        }
+
+        // Handle direct key: "panNumber"
+        if (obj[path] !== undefined && obj[path] !== null) {
+            return obj[path];
+        }
+    }
+    return null;
+};
+
+/**
+ * Scavenge a file path/URL from an object. 
+ * Returns the first valid path found, specifically filtering out "NOT_UPLOADED".
+ */
+export const scavengePath = (obj, ...paths) => {
+    const val = scavengeValue(obj, ...paths);
+    if (!val || typeof val !== 'string') return null;
+    const trimmed = val.trim();
+    if (trimmed === 'NOT_UPLOADED' || trimmed === 'null' || trimmed === '' || trimmed === 'undefined') return null;
+    return trimmed;
+};
+
+/**
+ * Find a specific proof in an identityProofs array by type.
+ */
+export const findProof = (proofs, targetType) => {
+    if (!Array.isArray(proofs)) return null;
+    const target = targetType.toUpperCase();
+    return proofs.find(p => {
+        const type = ((p.type || p.proofType) || '').toUpperCase();
+        return type === target;
+    });
+};
+
 // ─── MAIN NORMALIZER ─────────────────────────────────────────────
 
 /**
@@ -164,78 +215,87 @@ export const normalizeEmployee = (rawEmp) => {
     const emp = safeCopy(rawEmp);
 
     // Step 2: Extract flat values with strict fallbacks (The Contract)
+    // Basic Info
     const id = (emp?.id || emp?.employeeId) ?? null;
     const empCode = (emp?.empCode || emp?.employeeCode) ?? "";
     const empId = emp?.empId ?? "";
-    const name = (emp?.fullName || emp?.name) ?? "Unknown";
-    const email = emp?.email ?? "";
-    const phone = (emp?.phone || emp?.phoneNumber) ?? "";
+    const name = (emp?.fullName || emp?.name) ?? scavengeValue(emp, 'personal.fullName', 'personalDetails.fullName') ?? "Unknown";
+    const email = scavengeValue(emp, 'email', 'personal.email', 'personalDetails.email') ?? "";
+    const phone = scavengeValue(emp, 'phone', 'phoneNumber', 'personal.phoneNumber', 'personalDetails.phoneNumber') ?? "";
 
-    // Department extraction
+    // Department/Role/Entity extraction
     const deptName = extractName(emp?.deptName, 'deptName') ||
         extractName(emp?.dept, 'deptName', 'departmentName') ||
         extractName(emp?.department, 'deptName', 'departmentName') ||
         "None";
 
-    // Role extraction
     const roleName = extractName(emp?.roleName, 'roleName') ||
         extractName(emp?.role, 'roleName') ||
         "None";
 
-    // Entity extraction
     const entityName = extractName(emp?.entityName, 'entityName') ||
         extractName(emp?.entity, 'entityName') ||
         "None";
 
-    // Status type safety
+    // Status logic
     const status = typeof emp?.status === 'string' ? emp.status : "UNKNOWN";
     const onboardingStatus = emp?.onboarding?.status || emp?.onboardingStatus || "NOT_STARTED";
 
     // Dates — always YYYY-MM-DD strings
     const onboardingDate = formatDate(emp?.dateOfOnboarding || emp?.onboardingDate);
     const dateOfInterview = formatDate(emp?.dateOfInterview);
-    const dateOfBirth = formatDate(emp?.dateOfBirth || emp?.dob);
+    const dateOfBirth = formatDate(scavengeValue(emp, 'dateOfBirth', 'dob', 'personal.dateOfBirth', 'personalDetails.dateOfBirth'));
 
-    // CreatedAt (keep as formatted object for display)
-    const createdAt = emp?.createdAt ? formatDateTime(emp.createdAt) : null;
-
-    // File paths
-    const photoPath = emp?.photoPath ?? null;
-    const panPath = emp?.panPath ?? null;
-    const aadharPath = emp?.aadharPath ?? null;
-    const passbookPath = emp?.passbookPath ?? null;
-    const passportPath = emp?.passportPath ?? null;
-    const voterPath = emp?.voterPath ?? null;
-
-    // Detail fields
-    const bloodGroup = emp?.bloodGroup ?? "";
-    const fathersName = emp?.fathersName ?? "";
-    const fathersPhone = emp?.fathersPhone ?? "";
-    const mothersName = emp?.mothersName ?? "";
-    const mothersPhone = emp?.mothersPhone ?? "";
-    const emergencyContactName = emp?.emergencyContactName ?? "";
-    const emergencyRelationship = emp?.emergencyRelationship ?? "";
-    const emergencyNumber = emp?.emergencyNumber ?? "";
-    const bankName = emp?.bankName ?? "";
-    const branchName = emp?.branchName ?? "";
-    const ifscCode = emp?.ifscCode ?? "";
-    const accountNumber = emp?.accountNumber ?? "";
-    const upiId = emp?.upiId ?? "";
-    const presentAddress = emp?.presentAddress ?? "";
-    const permanentAddress = emp?.permanentAddress ?? "";
-    const panNumber = emp?.panNumber ?? "";
-    const aadharNumber = emp?.aadharNumber ?? "";
-
-    // Nested detail arrays
+    // Identity Discovery (Search Root, panProof, or identityProofs array)
     const identityProofs = Array.isArray(emp?.identityProofs) ? emp.identityProofs : [];
+
+    const panNumber = scavengeValue(emp, 'panNumber', 'panProof.panNumber', 'identityProof.panNumber') ||
+        findProof(identityProofs, 'PAN')?.panNumber || "";
+
+    const aadharNumber = scavengeValue(emp, 'aadharNumber', 'aadhaarNumber', 'panProof.aadhaarNumber', 'identityProof.aadhaarNumber') ||
+        findProof(identityProofs, 'AADHAR')?.aadhaarNumber || "";
+
+    // File Discovery (Scavenge everything deeply)
+    const photoPath = scavengePath(emp, 'photoPath', 'panProof.photoFilePath', 'personal.photoPath') || findProof(identityProofs, 'PHOTO')?.filePath || null;
+    const panPath = scavengePath(emp, 'panPath', 'panProof.panFilePath', 'identityProof.panFilePath') || findProof(identityProofs, 'PAN')?.filePath || null;
+    const aadharPath = scavengePath(emp, 'aadharPath', 'aadhaarPath', 'panProof.aadhaarFilePath', 'identityProof.aadhaarFilePath') || findProof(identityProofs, 'AADHAR')?.filePath || null;
+    const passbookPath = scavengePath(emp, 'passbookPath', 'bankDetails.documentFilePath', 'bankProof.documentFilePath') || null;
+    const passportPath = scavengePath(emp, 'passportPath', 'panProof.passportFilePath') || findProof(identityProofs, 'PASSPORT')?.filePath || null;
+    const voterPath = scavengePath(emp, 'voterPath', 'panProof.voterIdFilePath') || findProof(identityProofs, 'VOTER')?.filePath || null;
+
+    // Personal & Family
+    const bloodGroup = scavengeValue(emp, 'bloodGroup', 'personal.bloodGroup', 'personalDetails.bloodGroup') ?? "";
+    const fathersName = scavengeValue(emp, 'fathersName', 'personal.fathersName', 'personalDetails.fathersName') ?? "";
+    const fathersPhone = scavengeValue(emp, 'fathersPhone', 'personal.fathersPhone', 'personalDetails.fathersPhone') ?? "";
+    const mothersName = scavengeValue(emp, 'mothersName', 'personal.mothersName', 'personalDetails.mothersName') ?? "";
+    const mothersPhone = scavengeValue(emp, 'mothersPhone', 'personal.mothersPhone', 'personalDetails.mothersPhone') ?? "";
+    const emergencyContactName = scavengeValue(emp, 'emergencyContactName', 'emergencyName', 'personal.emergencyContactName') ?? "";
+    const emergencyRelationship = scavengeValue(emp, 'emergencyRelationship', 'emergencyRel', 'personal.emergencyRelationship') ?? "";
+    const emergencyNumber = scavengeValue(emp, 'emergencyNumber', 'emergencyPhone', 'personal.emergencyNumber') ?? "";
+
+    // Bank Details
+    const bankName = scavengeValue(emp, 'bankName', 'bankDetails.bankName') ?? "";
+    const branchName = scavengeValue(emp, 'branchName', 'bankDetails.branchName') ?? "";
+    const ifscCode = scavengeValue(emp, 'ifscCode', 'bankDetails.ifscCode') ?? "";
+    const accountNumber = scavengeValue(emp, 'accountNumber', 'bankDetails.accountNumber') ?? "";
+    const upiId = scavengeValue(emp, 'upiId', 'bankDetails.upiId') ?? "";
+
+    // Address
+    const presentAddress = scavengeValue(emp, 'presentAddress', 'presAddress', 'personal.presentAddress') ?? "";
+    const permanentAddress = scavengeValue(emp, 'permanentAddress', 'permAddress', 'personal.permanentAddress') ?? "";
+
+    // Nested detail arrays (keep as-is but ensure they exist)
     const ssc = emp?.ssc ?? null;
     const intermediate = emp?.intermediate ?? null;
     const graduation = emp?.graduation ?? null;
     const postGraduations = Array.isArray(emp?.postGraduations) ? emp.postGraduations : [];
     const otherCertificates = Array.isArray(emp?.otherCertificates) ? emp.otherCertificates : [];
     const internships = Array.isArray(emp?.internships) ? emp.internships : [];
-    const workExperiences = Array.isArray(emp?.workExperiences) ? emp.workExperiences : [];
-    const bankProof = emp?.bankProof ?? null;
+    const workExperiences = Array.isArray(emp?.workExperiences || emp?.workHistory) ? (emp.workExperiences || emp.workHistory) : [];
+    const bankProof = emp?.bankProof ?? emp?.bankDetails ?? null;
+
+    // CreatedAt (keep as formatted object for display)
+    const createdAt = emp?.createdAt ? formatDateTime(emp.createdAt) : null;
 
     // Counts
     const educationCount = Number(emp?.educationCount ?? 0);

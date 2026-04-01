@@ -115,7 +115,6 @@ const EmployeeList = () => {
 
   const handleAddEmployee = async (newEmployee) => {
     try {
-<<<<<<< HEAD
       const createdEmployee = await apiService.createEmployee(newEmployee);
       console.log("[DEBUG] Backend Response (createEmployee):", createdEmployee);
 
@@ -133,12 +132,6 @@ const EmployeeList = () => {
         }
         return [...prev, decorated];
       });
-
-=======
-      // API returns pre-normalized employee
-      const created = await apiService.createEmployee(newEmployee);
-      setEmployees(prev => [...prev, decorateEmployee(created)]);
->>>>>>> 156c736 (commit)
       setIsAddModalOpen(false);
       setToast({
         show: true,
@@ -166,7 +159,6 @@ const EmployeeList = () => {
 
   const handleFinalReview = async (emp, status) => {
     try {
-<<<<<<< HEAD
       const empId = emp.id || emp.employeeId;
       let remarks = 'All documents verified';
 
@@ -186,29 +178,15 @@ const EmployeeList = () => {
         message: `Onboarding ${status === 'APPROVED' ? 'approved' : 'rejected'} successfully!`,
         type: 'success'
       });
-
-=======
-      await apiService.reviewOnboarding({
-        employeeId: emp.id,
-        status: 'APPROVED',
-        remarks: 'Self-Approved',
-        rejectedDocuments: []
-      });
-      setToast({ show: true, message: 'Onboarding approved successfully!', type: 'success' });
->>>>>>> 156c736 (commit)
       setIsViewModalOpen(false);
       fetchData();
     } catch (error) {
-<<<<<<< HEAD
       console.error('Failed to process final review:', error);
       setToast({
         show: true,
         message: 'Failed to process review: ' + error.message,
         type: 'error'
       });
-=======
-      setToast({ show: true, message: 'Failed to approve: ' + error.message, type: 'error' });
->>>>>>> 156c736 (commit)
     }
   };
 
@@ -231,17 +209,13 @@ const EmployeeList = () => {
         // API returns pre-normalized detail
         const fullDetails = await apiService.getEmployeeDetail(emp.id);
         if (fullDetails) {
-<<<<<<< HEAD
           // 🚀 [SYC FIX] Update the list state with the detailed data
           // This ensures that extra data (like photos) fetched in details is preserved in list
           const normalized = normalizeEmployee(fullDetails, departments, roles, entities);
           const decorated = decorateEmployee(normalized, fullDetails);
-          setEmployees(prev => prev.map(e => (e.id || e.employeeId) === empId ? decorated : e));
+          setEmployees(prev => prev.map(e => (e.id || e.employeeId) === emp.id ? decorated : e));
           
           setSelectedEmployee(fullDetails);
-=======
-          setSelectedEmployee(decorateEmployee(fullDetails));
->>>>>>> 156c736 (commit)
           setIsViewModalOpen(true);
           setToast({ show: false });
           return;
@@ -278,7 +252,6 @@ const EmployeeList = () => {
     const emp = selectedEmployee;
     if (!emp) return;
 
-<<<<<<< HEAD
     // Ask for confirmation first
     if (!window.confirm(`Are you sure you want to reject the "${label}" for ${emp.name}? This will trigger a re-onboarding email where this field will be empty.`)) {
       return;
@@ -307,18 +280,6 @@ const EmployeeList = () => {
     } catch (error) {
       console.error('Failed to reject document:', error);
       setToast({ show: true, message: 'Failed to reject document: ' + error.message, type: 'error' });
-=======
-    if (window.confirm(`Are you sure you want to reject "${label}" for ${emp.name}?`)) {
-      try {
-        const entityId = (doc.id && !isNaN(doc.id)) ? Number(doc.id) : null;
-        await apiService.rejectOnboardingDocument(emp.id, doc.entityType, entityId);
-        setToast({ show: true, message: `Document "${label}" rejected. Re-onboarding email sent.`, type: 'success' });
-        fetchData();
-        setIsViewModalOpen(false);
-      } catch (error) {
-        setToast({ show: true, message: 'Failed to reject document: ' + error.message, type: 'error' });
-      }
->>>>>>> 156c736 (commit)
     }
   };
 
@@ -495,51 +456,28 @@ const EmployeeList = () => {
               </tr>
             </thead>
             <tbody>
-<<<<<<< HEAD
-              {filteredEmployees.map((emp, index) => (
-                <tr key={`${emp.id || emp.employeeId || 'temp'}-${index}-${emp.email}`}>
-                  <td className="emp-id-cell">{emp.employeeId || emp.id || '-'}</td>
-                  <td className="emp-code-cell">{emp.empCode || '-'}</td>
-                  <td className="emp-name-cell">
-                    <div className="name-wrapper">
-                      <div className="emp-thumbnail">
-                        {emp.photoPath ? (
-                          <img
-                            src={buildFileUrl(emp.photoPath)}
-                            alt={emp.name}
-                            onError={(e) => {
-                              // Professional UX: immediately fall back to initials on error
-                              e.target.style.display = 'none';
-                              e.target.parentElement.innerText = (emp.name || '').split(' ').map(n => n[0]).join('');
-                            }}
-                          />
-                        ) : (
-                          (emp.name || '').split(' ').map(n => n[0]).join('')
-                        )}
-=======
               {filteredEmployees.length > 0 ? (
-                filteredEmployees.map((emp) => (
-                  <tr key={emp?.id || Math.random()}>
-                    <td className="emp-id-cell">{emp?.id || '-'}</td>
-                    <td className="emp-code-cell">{emp?.empCode || '-'}</td>
+                filteredEmployees.map((emp, index) => (
+                  <tr key={`${emp.id || emp.employeeId || 'temp'}-${index}-${emp.email}`}>
+                    <td className="emp-id-cell">{emp.employeeId || emp.id || '-'}</td>
+                    <td className="emp-code-cell">{emp.empCode || '-'}</td>
                     <td className="emp-name-cell">
                       <div className="name-wrapper">
                         <div className="emp-thumbnail">
-                          {emp?.photoPath ? (
+                          {emp.photoPath ? (
                             <img
                               src={buildFileUrl(emp.photoPath)}
                               alt={emp.name}
                               onError={(e) => {
                                 e.target.style.display = 'none';
-                                e.target.parentElement.innerText = (emp?.name || "U").split(' ').map(n => n[0]).join('');
+                                e.target.parentElement.innerText = (emp.name || '').split(' ').map(n => n[0]).join('');
                               }}
                             />
                           ) : (
-                            (emp?.name || "Unknown").split(' ').map(n => n[0]).join('')
+                            (emp.name || '').split(' ').map(n => n[0]).join('')
                           )}
                         </div>
-                        <span>{emp?.name || 'Unknown'}</span>
->>>>>>> 156c736 (commit)
+                        <span>{emp.name || 'Unknown'}</span>
                       </div>
                     </td>
                     <td>{emp?.roleName || '-'}</td>

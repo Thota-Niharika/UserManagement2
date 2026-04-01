@@ -36,13 +36,8 @@ const Header = ({ toggleSidebar, toggleProfile }) => {
 
         <div className="user-profile" onClick={toggleProfile} style={{ cursor: 'pointer' }}>
           <div className="user-info">
-<<<<<<< HEAD
             <span className="user-name">{userName}</span>
             <span className="user-role">{userRole}</span>
-=======
-            <span className="user-name">Vara Laxsmi</span>
-            <span className="user-role">Super Admin</span>
->>>>>>> 62ebbba (commit)
           </div>
           <div className="avatar">
             <User size={20} />
