@@ -3,11 +3,32 @@ import { API_BASE_URL } from '../config/api';
 import { normalizeEmployee, normalizeEmployeeList } from '../utils/normalizeEmployee';
 import { parseIfString } from '../utils/apiUtils';
 
+// --- CLEAN API EXPORTS ---
+export const submitOnboarding = async (dto, files = [], token = null) => {
+  const formData = new FormData();
+
+  formData.append("dto", JSON.stringify(dto));
+
+  const fileList = Array.isArray(files)
+    ? files
+    : Object.values(files || {});
+
+  fileList.forEach((file) => {
+    if (file) formData.append("files", file);
+  });
+
+  const endpoint = token
+    ? `/onboarding/submit?token=${encodeURIComponent(token)}`
+    : "/onboarding/submit";
+
+  return safePost(endpoint, formData);
+};
+
 // ─── HARDENED API CLIENT ──────────────────────────────────────────
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000,
 });
 
 /**
@@ -195,33 +216,34 @@ const ApiService = {
   activateEmployee: (id) => safePatch(`/employees/${id}/activate`, {}),
   deactivateEmployee: (id) => safePatch(`/employees/${id}/deactivate`, {}),
 
-  // --- ONBOARDING ---
-  submitOnboarding: (data, token) => {
-    const endpoint = token ? `/onboarding/submit?token=${encodeURIComponent(token)}` : '/onboarding/submit';
-    return safePost(endpoint, data);
+  // --- ONBOARDING (FINAL CLEAN VERSION) ---
+
+  // ✅ ONLY ONE FUNCTION — SINGLE SOURCE OF TRUTH
+  submitOnboarding: (dto, files, token) => {
+    return submitOnboarding(dto, files, token);
   },
-  submitWithDto: async (url, dto, files) => {
-    const formData = new FormData();
-    formData.append('data', new Blob([JSON.stringify(dto)], { type: 'application/json' }));
-    
-    if (files) {
-      Object.keys(files).forEach(key => {
-        if (files[key]) {
-          formData.append(key, files[key]);
-        }
-      });
-    }
-    
-    return safePost(url, formData);
-  },
-  getOnboardingByToken: (token) => {
+
+  getOnboardingByToken: async (token) => {
     if (!token) return null;
-    return safeGet(`/onboarding/get-onboarding-by-token?token=${encodeURIComponent(token)}`);
+
+    try {
+      return await safeGet(
+        `/onboarding/get-onboarding-by-token?token=${encodeURIComponent(token)}`
+      );
+    } catch (err) {
+      console.warn("⚠️ Primary failed, trying fallback...");
+      return safeGet(`/onboarding/details?token=${encodeURIComponent(token)}`);
+    }
   },
+
   reviewOnboarding: (data, token) => {
-    const endpoint = token ? `/onboarding/review?token=${encodeURIComponent(token)}` : '/onboarding/review';
+    const endpoint = token
+      ? `/onboarding/review?token=${encodeURIComponent(token)}`
+      : "/onboarding/review";
+
     return safePost(endpoint, data);
   },
+
   getOnboardingDetail: (id) => safeGet(`/onboarding/${id}`),
   rejectOnboardingDocument: (employeeId, entityType, entityId) => {
     return safePost('/onboarding/reject-document', { employeeId, entityType, entityId });

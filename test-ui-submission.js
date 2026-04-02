@@ -12,9 +12,9 @@ async function runTest() {
         const employeeId = 1;
         const realToken = "5qirrWEgu87UZEegMsr_EcIrFbORgpYz20HImDcU20I";
 
-        // 2. SUBMIT ONBOARDING using FormData mimicking submitWithDto
+
         console.log("\n🔹 Step 2: Submitting Onboarding Payload via Multipart/FormData...");
-        
+
         const dto = {
             fullName: "Multipart Tester",
             email: "multipart_1775052682800@test.com",

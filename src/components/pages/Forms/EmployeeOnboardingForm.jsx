@@ -15,7 +15,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react';
-import apiService from "../../../services/api";
+import apiService, { submitOnboarding } from "../../../services/api";
 import { normalizeEmployee, scavengeValue, scavengePath, findProof } from '../../../utils/normalizeEmployee';
 
 const EmployeeOnboardingForm = () => {
@@ -831,47 +831,39 @@ const EmployeeOnboardingForm = () => {
             };
 
             const isNewFile = (f) => f && !f.isServerFile && f instanceof File;
-            const files = {};
+            const fileList = [];
 
-            if (isNewFile(education.ssc.certificate)) files['sscCertificate'] = education.ssc.certificate;
-            if (isNewFile(education.ssc.marksMemo)) files['sscMarksMemo'] = education.ssc.marksMemo;
-            if (isNewFile(education.inter.certificate)) files['interCertificate'] = education.inter.certificate;
-            if (isNewFile(education.inter.marksMemo)) files['interMarksMemo'] = education.inter.marksMemo;
-            if (isNewFile(education.grad.certificate)) files['gradCertificate'] = education.grad.certificate;
-            if (isNewFile(education.grad.marksMemo)) files['gradMarksMemo'] = education.grad.marksMemo;
+            if (isNewFile(education.ssc.certificate)) fileList.push(education.ssc.certificate);
+            if (isNewFile(education.ssc.marksMemo)) fileList.push(education.ssc.marksMemo);
+            if (isNewFile(education.inter.certificate)) fileList.push(education.inter.certificate);
+            if (isNewFile(education.inter.marksMemo)) fileList.push(education.inter.marksMemo);
+            if (isNewFile(education.grad.certificate)) fileList.push(education.grad.certificate);
+            if (isNewFile(education.grad.marksMemo)) fileList.push(education.grad.marksMemo);
 
-            education.postGrad.forEach((pg, i) => {
-                if (isNewFile(pg.certificate)) files[`postGradCertificate_${i}`] = pg.certificate;
-            });
-            education.otherCerts.forEach((c, i) => {
-                if (isNewFile(c.certificate)) files[`otherCertificate_${i}`] = c.certificate;
-            });
+            education.postGrad.forEach(pg => { if (isNewFile(pg.certificate)) fileList.push(pg.certificate); });
+            education.otherCerts.forEach(c => { if (isNewFile(c.certificate)) fileList.push(c.certificate); });
 
-            experience.internships.forEach((int, i) => {
-                if (isNewFile(int.offerLetter)) files[`internshipOfferLetter_${i}`] = int.offerLetter;
-                if (isNewFile(int.relievingLetter)) files[`internshipExpCert_${i}`] = int.relievingLetter;
+            experience.internships.forEach(int => {
+                if (isNewFile(int.offerLetter)) fileList.push(int.offerLetter);
+                if (isNewFile(int.relievingLetter)) fileList.push(int.relievingLetter);
             });
-            experience.workHistory.forEach((work, i) => {
-                if (isNewFile(work.offerLetter)) files[`workOfferLetter_${i}`] = work.offerLetter;
-                if (isNewFile(work.relievingLetter)) files[`workRelievingLetter_${i}`] = work.relievingLetter;
-                if (isNewFile(work.payslips)) files[`workPayslips_${i}`] = work.payslips;
-                if (isNewFile(work.experienceCert)) files[`workExpCert_${i}`] = work.experienceCert;
+            experience.workHistory.forEach(work => {
+                if (isNewFile(work.offerLetter)) fileList.push(work.offerLetter);
+                if (isNewFile(work.relievingLetter)) fileList.push(work.relievingLetter);
+                if (isNewFile(work.payslips)) fileList.push(work.payslips);
+                if (isNewFile(work.experienceCert)) fileList.push(work.experienceCert);
             });
 
-            if (isNewFile(bank.docImage)) files['passbookFile'] = bank.docImage;
-            if (isNewFile(documents.panCard)) files['panFile'] = documents.panCard;
-            if (isNewFile(documents.aadharCard)) files['aadhaarFile'] = documents.aadharCard;
-            if (isNewFile(documents.passportPhoto)) files['photoFile'] = documents.passportPhoto;
-            if (isNewFile(documents.passportDoc)) files['passportFile'] = documents.passportDoc;
-            if (isNewFile(documents.voterId)) files['voterIdFile'] = documents.voterId;
+            if (isNewFile(bank.docImage)) fileList.push(bank.docImage);
+            if (isNewFile(documents.panCard)) fileList.push(documents.panCard);
+            if (isNewFile(documents.aadharCard)) fileList.push(documents.aadharCard);
+            if (isNewFile(documents.passportPhoto)) fileList.push(documents.passportPhoto);
+            if (isNewFile(documents.passportDoc)) fileList.push(documents.passportDoc);
+            if (isNewFile(documents.voterId)) fileList.push(documents.voterId);
 
-            console.log("🚀 Submitting multipart payload. DTO:", dto, "Files:", Object.keys(files));
+            console.log("🚀 Submitting clean multipart payload. DTO:", dto, "Files:", fileList.length);
 
-            const response = await apiService.submitWithDto(
-                `/onboarding/submit?token=${submitToken}`,
-                dto,
-                files
-            );
+            const response = await submitOnboarding(dto, fileList, submitToken);
 
             console.log("✅ Onboarding Submit Success:", response);
             setStep(7);
