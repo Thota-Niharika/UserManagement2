@@ -17,6 +17,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import apiService, { submitOnboarding } from "../../../services/api";
 import { normalizeEmployee, scavengeValue, scavengePath, findProof } from '../../../utils/normalizeEmployee';
+import { compressFile } from '../../../utils/file';
 
 const EmployeeOnboardingForm = () => {
 
@@ -780,43 +781,64 @@ const EmployeeOnboardingForm = () => {
                 }))
             };
 
-            // 🚀 IMPORTANT: Append as 'data' part (JSON Blob)
-            formData.append('data', new Blob([JSON.stringify(onboardingData)], { type: 'application/json' }));
+            // 🚀 IMPORTANT: Append as 'data' part (JSON Blob) — filename required by some parsers
+            formData.append('data', new Blob([JSON.stringify(onboardingData)], { type: 'application/json' }), 'data.json');
 
-            // 2. Append Files separately (Flat parts)
+            // 2. Append Files separately — compress images first to avoid server size limits
             const isNewFile = (f) => f && !f.isServerFile && f instanceof File;
+            const compress = (f) => isNewFile(f) ? compressFile(f) : Promise.resolve(null);
 
-            if (isNewFile(documents.panCard)) formData.append('pan_file', documents.panCard);
-            if (isNewFile(documents.aadharCard)) formData.append('aadhaar_file', documents.aadharCard);
-            if (isNewFile(documents.passportPhoto)) formData.append('photo_file', documents.passportPhoto);
-            if (isNewFile(documents.passportDoc)) formData.append('passport_file', documents.passportDoc);
-            if (isNewFile(documents.voterId)) formData.append('voter_file', documents.voterId);
-            
-            if (isNewFile(bank.docImage)) formData.append('bank_document_file', bank.docImage);
+            const [
+                panFile, aadharFile, photoFile, passportFile, voterFile,
+                bankFile,
+                sscCert, sscMarks, interCert, interMarks, gradCert, gradMarks
+            ] = await Promise.all([
+                compress(documents.panCard),
+                compress(documents.aadharCard),
+                compress(documents.passportPhoto),
+                compress(documents.passportDoc),
+                compress(documents.voterId),
+                compress(bank.docImage),
+                compress(education.ssc.certificate),
+                compress(education.ssc.marksMemo),
+                compress(education.inter.certificate),
+                compress(education.inter.marksMemo),
+                compress(education.grad.certificate),
+                compress(education.grad.marksMemo),
+            ]);
 
-            if (isNewFile(education.ssc.certificate)) formData.append('ssc_file', education.ssc.certificate);
-            if (isNewFile(education.ssc.marksMemo)) formData.append('ssc_marks_file', education.ssc.marksMemo);
+            if (panFile) formData.append('pan_file', panFile);
+            if (aadharFile) formData.append('aadhaar_file', aadharFile);
+            if (photoFile) formData.append('photo_file', photoFile);
+            if (passportFile) formData.append('passport_file', passportFile);
+            if (voterFile) formData.append('voter_file', voterFile);
+            if (bankFile) formData.append('bank_document_file', bankFile);
+            if (sscCert) formData.append('ssc_file', sscCert);
+            if (sscMarks) formData.append('ssc_marks_file', sscMarks);
+            if (interCert) formData.append('inter_file', interCert);
+            if (interMarks) formData.append('inter_marks_file', interMarks);
+            if (gradCert) formData.append('graduation_file', gradCert);
+            if (gradMarks) formData.append('graduation_marks_file', gradMarks);
 
-            if (isNewFile(education.inter.certificate)) formData.append('inter_file', education.inter.certificate);
-            if (isNewFile(education.inter.marksMemo)) formData.append('inter_marks_file', education.inter.marksMemo);
+            const pgFiles = await Promise.all(education.postGrad.map(pg => compress(pg.certificate)));
+            pgFiles.forEach((f, i) => { if (f) formData.append(`post_grad_${i}_file`, f); });
 
-            if (isNewFile(education.grad.certificate)) formData.append('graduation_file', education.grad.certificate);
-            if (isNewFile(education.grad.marksMemo)) formData.append('graduation_marks_file', education.grad.marksMemo);
-
-            education.postGrad.forEach((pg, i) => {
-                if (isNewFile(pg.certificate)) formData.append(`post_grad_${i}_file`, pg.certificate);
+            const intFiles = await Promise.all(
+                experience.internships.flatMap(int => [compress(int.offerLetter), compress(int.relievingLetter)])
+            );
+            experience.internships.forEach((_, i) => {
+                if (intFiles[i * 2]) formData.append(`internship_${i}_offer`, intFiles[i * 2]);
+                if (intFiles[i * 2 + 1]) formData.append(`internship_${i}_relieving`, intFiles[i * 2 + 1]);
             });
 
-            experience.internships.forEach((int, i) => {
-                if (isNewFile(int.offerLetter)) formData.append(`internship_${i}_offer`, int.offerLetter);
-                if (isNewFile(int.relievingLetter)) formData.append(`internship_${i}_relieving`, int.relievingLetter);
-            });
-
-            experience.workHistory.forEach((work, i) => {
-                if (isNewFile(work.offerLetter)) formData.append(`work_${i}_offer`, work.offerLetter);
-                if (isNewFile(work.relievingLetter)) formData.append(`work_${i}_relieving`, work.relievingLetter);
-                if (isNewFile(work.payslips)) formData.append(`work_${i}_payslips`, work.payslips);
-                if (isNewFile(work.experienceCert)) formData.append(`work_${i}_exp`, work.experienceCert);
+            const workFiles = await Promise.all(
+                experience.workHistory.flatMap(w => [compress(w.offerLetter), compress(w.relievingLetter), compress(w.payslips), compress(w.experienceCert)])
+            );
+            experience.workHistory.forEach((_, i) => {
+                if (workFiles[i * 4]) formData.append(`work_${i}_offer`, workFiles[i * 4]);
+                if (workFiles[i * 4 + 1]) formData.append(`work_${i}_relieving`, workFiles[i * 4 + 1]);
+                if (workFiles[i * 4 + 2]) formData.append(`work_${i}_payslips`, workFiles[i * 4 + 2]);
+                if (workFiles[i * 4 + 3]) formData.append(`work_${i}_exp`, workFiles[i * 4 + 3]);
             });
 
             // Verification Logging

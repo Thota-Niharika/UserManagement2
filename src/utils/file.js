@@ -99,3 +99,69 @@ export const getAltFileUrl = (currentUrl, apiBaseUrl) => {
         `${base}/uploads/${encoded}`,
     ].filter(url => url !== currentUrl);
 };
+
+/**
+ * Compresses an image File using the Canvas API.
+ * - Images wider/taller than `maxDim` are scaled down proportionally.
+ * - Quality is reduced until the blob is under `maxBytes`.
+ * - Non-image files (e.g. PDFs) are returned unchanged.
+ *
+ * @param {File} file        - The source File object.
+ * @param {number} maxDim    - Max width or height in pixels (default 1280).
+ * @param {number} maxBytes  - Target max size in bytes (default 800 KB).
+ * @returns {Promise<File>}  - Compressed File (or original if not an image).
+ */
+export const compressFile = (file, maxDim = 1280, maxBytes = 800 * 1024) => {
+    return new Promise((resolve) => {
+        if (!file || !file.type.startsWith('image/')) {
+            // Not an image — pass through as-is (e.g. PDF documents)
+            resolve(file);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+
+                // Scale down if necessary
+                if (width > maxDim || height > maxDim) {
+                    const ratio = Math.min(maxDim / width, maxDim / height);
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Try progressively lower quality until under maxBytes
+                const tryQuality = (quality) => {
+                    canvas.toBlob(
+                        (blob) => {
+                            if (!blob) { resolve(file); return; }
+                            if (blob.size <= maxBytes || quality <= 0.3) {
+                                const compressed = new File([blob], file.name, {
+                                    type: blob.type || 'image/jpeg',
+                                    lastModified: Date.now()
+                                });
+                                console.log(`🗜️ Compressed "${file.name}": ${(file.size / 1024).toFixed(1)}KB → ${(blob.size / 1024).toFixed(1)}KB`);
+                                resolve(compressed);
+                            } else {
+                                tryQuality(Math.round((quality - 0.1) * 10) / 10);
+                            }
+                        },
+                        'image/jpeg',
+                        quality
+                    );
+                };
+                tryQuality(0.85);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+};

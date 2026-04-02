@@ -30,7 +30,7 @@ export const submitOnboarding = async (dtoOrFormData, files = [], token = null) 
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 120000,
+  timeout: 300000, // 5 minutes — allow large file uploads
 });
 
 /**
@@ -74,9 +74,12 @@ const getErrorMessage = (err) => {
  */
 export const safePost = async (url, payload) => {
   try {
+    // 🚨 CRITICAL: Do NOT set Content-Type manually for FormData.
+    // Axios + browser must generate the boundary automatically.
+    // Setting it manually strips the boundary → ERR_CONNECTION_ABORTED.
     const isFormData = payload instanceof FormData;
     const res = await api.post(url, payload, {
-      headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : { 'Content-Type': 'application/json' }
+      headers: isFormData ? {} : { 'Content-Type': 'application/json' }
     });
     const parsed = parseIfString(res.data);
     return parsed?.data ?? parsed;
