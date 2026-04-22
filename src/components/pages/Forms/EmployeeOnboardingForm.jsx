@@ -253,8 +253,8 @@ const EmployeeOnboardingForm = () => {
                 if (!data.certificate) newErrors[`${level}_certificate`] = 'Required';
             }
         } else if (currentStep === 4) {
-            // Relaxed: upiId is optional
-            const requiredBank = ['bankName', 'branchName', 'accountNumber', 'ifscCode'];
+            // Mandated: upiId is now required by backend
+            const requiredBank = ['bankName', 'branchName', 'accountNumber', 'ifscCode', 'upiId'];
             for (const field of requiredBank) {
                 if (!bank[field]) {
                     newErrors[field] = 'Required';
@@ -725,73 +725,108 @@ const EmployeeOnboardingForm = () => {
             // --- FIXED: Group Metadata into 'data' part (Backend Requirement) ---
             const formData = new FormData();
 
-            // 1. Prepare Metadata Object (DTO)
+            // 1. Prepare Metadata Object (DTO) - Matches user's JSON specification
             const onboardingData = {
-                // Personal
-                full_name: personal.fullName,
-                email: personal.email,
-                phone: personal.phone,
-                dob: personal.dateOfBirth,
-                blood_group: personal.bloodGroup,
-                father_name: personal.fatherName,
-                father_phone: personal.fatherPhone || '',
-                mother_name: personal.motherName,
-                mother_phone: personal.motherPhone || '',
-                permanent_address: personal.permAddress,
-                present_address: personal.presAddress,
-                emergency_contact_name: personal.emergencyName,
-                emergency_relationship: personal.emergencyRel,
-                emergency_phone: personal.emergencyPhone,
+                fullName: personal.fullName || '',
+                email: personal.email || '',
+                phoneNumber: personal.phone || '',
+                dateOfBirth: personal.dateOfBirth || '',
+                bloodGroup: personal.bloodGroup || '',
+                permanentAddress: personal.permAddress || '',
+                presentAddress: personal.presAddress || '',
+                fathersName: personal.fatherName || '',
+                fathersPhone: personal.fatherPhone || '',
+                mothersName: personal.motherName || '',
+                mothersPhone: personal.motherPhone || '',
+                emergencyContactName: personal.emergencyName || '',
+                emergencyRelationship: personal.emergencyRel || '',
+                emergencyNumber: personal.emergencyPhone || '',
 
-                // Identity
-                pan_number: (documents.panNumber || '').replace(/\s+/g, '').toUpperCase(),
-                aadhaar_number: (documents.aadharNumber || '').replace(/\s+/g, ''),
+                ssc: {
+                    institutionName: education.ssc.school,
+                    hallTicketNumber: education.ssc.htNumber,
+                    passoutYear: parseInt(education.ssc.year) || null,
+                    percentage: parseFloat(education.ssc.percentage) || null
+                },
 
-                // Bank
-                bank_name: bank.bankName,
-                branch_name: bank.branchName,
-                account_number: bank.accountNumber,
-                ifsc_code: bank.ifscCode,
-                upi_id: bank.upiId || '',
-                bank_document_type: bank.documentType || 'PASSBOOK',
+                intermediate: {
+                    institutionName: education.inter.school || education.inter.college,
+                    hallTicketNumber: education.inter.htNumber,
+                    passoutYear: parseInt(education.inter.year) || null,
+                    percentage: parseFloat(education.inter.percentage) || null
+                },
 
-                // Education List Mappings (Nested)
-                ssc_data: { 
-                    institutionName: education.ssc.school, passoutYear: education.ssc.year, 
-                    percentageCgpa: education.ssc.percentage, hallTicketNo: education.ssc.htNumber 
-                },
-                inter_data: { 
-                    institutionName: education.inter.school, passoutYear: education.inter.year, 
-                    percentageCgpa: education.inter.percentage, hallTicketNo: education.inter.htNumber 
-                },
-                graduation_data: { 
-                    institutionName: education.grad.school, passoutYear: education.grad.year, 
-                    percentageCgpa: education.grad.percentage, hallTicketNo: education.grad.htNumber 
-                },
-                post_graduations: education.postGrad.map(pg => ({
-                    institutionName: pg.school, passoutYear: pg.year, percentageCgpa: pg.percentage
+                graduations: [
+                    {
+                        educationType: "GRADUATION",
+                        institutionName: education.grad.school || education.grad.college,
+                        hallTicketNumber: education.grad.htNumber,
+                        passoutYear: parseInt(education.grad.year) || null,
+                        percentage: parseFloat(education.grad.percentage) || null
+                    }
+                ],
+
+                postGraduations: education.postGrad.map(pg => ({
+                    educationType: "POST_GRADUATION",
+                    institutionName: pg.school || pg.college,
+                    hallTicketNumber: pg.htNumber || null,
+                    passoutYear: parseInt(pg.year) || null,
+                    percentage: parseFloat(pg.percentage) || null
                 })),
-                
-                // Experience List Mappings (Nested)
+
+                panProof: {
+                    panNumber: (documents.panNumber || '').replace(/\s+/g, '').toUpperCase() || ''
+                },
+
+                aadharProof: {
+                    aadhaarNumber: (documents.aadharNumber || '').replace(/\s+/g, '') || ''
+                },
+
+                photoProof: { status: "PENDING" },
+                passportProof: { status: "PENDING" },
+                voterProof: { status: "PENDING" },
+
+                bankDetails: {
+                    bankName: bank.bankName || '',
+                    branchName: bank.branchName || '',
+                    accountNumber: bank.accountNumber || '',
+                    ifscCode: bank.ifscCode || '',
+                    upiId: bank.upiId || '',
+                    documentType: bank.documentType || 'PASSBOOK'
+                },
+
+                workExperiences: experience.workHistory.map(work => ({
+                    companyName: work.company || null,
+                    yearsOfExperience: parseInt(work.years) || 0
+                })),
+
                 internships: experience.internships.map(int => ({
-                    companyName: int.company, joiningDate: int.joining, relievingDate: int.relieving, duration: int.duration
+                    companyName: int.company || '',
+                    joiningDate: int.joining || null,
+                    relievingDate: int.relieving || null,
+                    internshipId: int.id || '',
+                    duration: int.duration || ''
                 })),
-                work_experiences: experience.workHistory.map(work => ({
-                    companyName: work.company, yearsOfExp: work.years
+
+                otherCertificates: education.otherCerts.map(cert => ({
+                    instituteName: cert.institute,
+                    certificateNumber: cert.certNumber,
+                    status: "PENDING"
                 }))
             };
 
-            // 🚀 IMPORTANT: Append as 'data' part (JSON Blob) — filename required by some parsers
-            formData.append('data', new Blob([JSON.stringify(onboardingData)], { type: 'application/json' }), 'data.json');
+            // 🚀 IMPORTANT: Append as 'data' part (JSON Blob)
+            // Using application/json Blob helps Spring Boot map the @RequestPart correctly
+            formData.append('data', new Blob([JSON.stringify(onboardingData)], { type: 'application/json' }));
 
-            // 2. Append Files separately — compress images first to avoid server size limits
+            // 2. Append Files separately with specific keys required by backend
             const isNewFile = (f) => f && !f.isServerFile && f instanceof File;
             const compress = (f) => isNewFile(f) ? compressFile(f) : Promise.resolve(null);
 
             const [
                 panFile, aadharFile, photoFile, passportFile, voterFile,
                 bankFile,
-                sscCert, sscMarks, interCert, interMarks, gradCert, gradMarks
+                sscCert, interCert, gradCert, gradMarks
             ] = await Promise.all([
                 compress(documents.panCard),
                 compress(documents.aadharCard),
@@ -800,46 +835,54 @@ const EmployeeOnboardingForm = () => {
                 compress(documents.voterId),
                 compress(bank.docImage),
                 compress(education.ssc.certificate),
-                compress(education.ssc.marksMemo),
                 compress(education.inter.certificate),
-                compress(education.inter.marksMemo),
                 compress(education.grad.certificate),
-                compress(education.grad.marksMemo),
+                compress(education.grad.marksMemo)
             ]);
 
-            if (panFile) formData.append('pan_file', panFile);
-            if (aadharFile) formData.append('aadhaar_file', aadharFile);
-            if (photoFile) formData.append('photo_file', photoFile);
-            if (passportFile) formData.append('passport_file', passportFile);
-            if (voterFile) formData.append('voter_file', voterFile);
-            if (bankFile) formData.append('bank_document_file', bankFile);
-            if (sscCert) formData.append('ssc_file', sscCert);
-            if (sscMarks) formData.append('ssc_marks_file', sscMarks);
-            if (interCert) formData.append('inter_file', interCert);
-            if (interMarks) formData.append('inter_marks_file', interMarks);
-            if (gradCert) formData.append('graduation_file', gradCert);
-            if (gradMarks) formData.append('graduation_marks_file', gradMarks);
+            // Identity
+            if (photoFile) formData.append('photo', photoFile);
+            if (panFile) formData.append('pan', panFile);
+            if (aadharFile) formData.append('aadhaar', aadharFile);
+            if (voterFile) formData.append('voter', voterFile);
+            if (passportFile) formData.append('passport', passportFile);
+
+            // Education
+            if (sscCert) formData.append('ssc', sscCert);
+            if (interCert) formData.append('intermediate', interCert);
+            if (gradCert) formData.append('grad_certificate_0', gradCert);
+            if (gradMarks) formData.append('grad_marks_0', gradMarks);
 
             const pgFiles = await Promise.all(education.postGrad.map(pg => compress(pg.certificate)));
-            pgFiles.forEach((f, i) => { if (f) formData.append(`post_grad_${i}_file`, f); });
+            pgFiles.forEach((f, i) => { if (f) formData.append(`postgrad_certificate_${i}`, f); });
 
-            const intFiles = await Promise.all(
-                experience.internships.flatMap(int => [compress(int.offerLetter), compress(int.relievingLetter)])
-            );
+            const otherCertFiles = await Promise.all(education.otherCerts.map(c => compress(c.certificate)));
+            otherCertFiles.forEach((f, i) => { if (f) formData.append(`certification_${i}`, f); });
+
+            // Internship
+            const intOfferFiles = await Promise.all(experience.internships.map(int => compress(int.offerLetter)));
+            const intRelievingFiles = await Promise.all(experience.internships.map(int => compress(int.relievingLetter)));
             experience.internships.forEach((_, i) => {
-                if (intFiles[i * 2]) formData.append(`internship_${i}_offer`, intFiles[i * 2]);
-                if (intFiles[i * 2 + 1]) formData.append(`internship_${i}_relieving`, intFiles[i * 2 + 1]);
+                if (intOfferFiles[i]) formData.append(`internship_offer_${i}`, intOfferFiles[i]);
+                if (intRelievingFiles[i]) formData.append(`internship_certificate_${i}`, intRelievingFiles[i]);
             });
 
-            const workFiles = await Promise.all(
-                experience.workHistory.flatMap(w => [compress(w.offerLetter), compress(w.relievingLetter), compress(w.payslips), compress(w.experienceCert)])
-            );
+            // Work Experience
+            const workOfferFiles = await Promise.all(experience.workHistory.map(w => compress(w.offerLetter)));
+            const workRelievingFiles = await Promise.all(experience.workHistory.map(w => compress(w.relievingLetter)));
+            const workPayslipFiles = await Promise.all(experience.workHistory.map(w => compress(w.payslips)));
+            const workExpFiles = await Promise.all(experience.workHistory.map(w => compress(w.experienceCert)));
+            
             experience.workHistory.forEach((_, i) => {
-                if (workFiles[i * 4]) formData.append(`work_${i}_offer`, workFiles[i * 4]);
-                if (workFiles[i * 4 + 1]) formData.append(`work_${i}_relieving`, workFiles[i * 4 + 1]);
-                if (workFiles[i * 4 + 2]) formData.append(`work_${i}_payslips`, workFiles[i * 4 + 2]);
-                if (workFiles[i * 4 + 3]) formData.append(`work_${i}_exp`, workFiles[i * 4 + 3]);
+                if (workOfferFiles[i]) formData.append(`experience_offer_${i}`, workOfferFiles[i]);
+                if (workRelievingFiles[i]) formData.append(`experience_reliev_${i}`, workRelievingFiles[i]);
+                if (workPayslipFiles[i]) formData.append(`experience_payslip_${i}`, workPayslipFiles[i]);
+                if (workExpFiles[i]) formData.append(`experience_certificate_${i}`, workExpFiles[i]);
             });
+
+            // Bank
+            if (bankFile) formData.append('bank', bankFile);
+
 
             // Verification Logging
             console.log("🚀 [FORMDATA VERIFICATION] Final Payload:");
@@ -1132,8 +1175,8 @@ const EmployeeOnboardingForm = () => {
                             </div>
 
                             <div className="row">
-                                {/* Optional: UPI ID should not be HTML-required */}
-                                <Input label="UPI ID" name="upiId" val={bank.upiId} fn={handleBankChange} error={errors.upiId} rejected={isFieldRejected('upiId')} />
+                                {/* Mandatory: UPI ID is required by backend */}
+                                <Input label="UPI ID" name="upiId" val={bank.upiId} fn={handleBankChange} req error={errors.upiId} rejected={isFieldRejected('upiId')} />
                             </div>
 
                             <h3>Document Upload</h3>

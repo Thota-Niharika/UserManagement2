@@ -79,7 +79,10 @@ export const safePost = async (url, payload) => {
     // Setting it manually strips the boundary → ERR_CONNECTION_ABORTED.
     const isFormData = payload instanceof FormData;
     const res = await api.post(url, payload, {
-      headers: isFormData ? {} : { 'Content-Type': 'application/json' }
+      headers: {
+        'Accept': 'application/json',
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' })
+      }
     });
     const parsed = parseIfString(res.data);
     return parsed?.data ?? parsed;
@@ -226,7 +229,7 @@ const ApiService = {
       status: formData.status || 'ONBOARDING'
     };
     console.log('📤 [createEmployee] Sending payload:', JSON.stringify(payload, null, 2));
-    const raw = await safePost('/employees/employees', payload);
+    const raw = await safePost('/employees', payload);
     return normalizeEmployee(raw);
   },
   updateEmployee: async (id, formData) => {
