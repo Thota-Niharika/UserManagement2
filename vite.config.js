@@ -15,7 +15,7 @@ export default defineConfig({
     proxy: {
       // This RegExp catches /api + EVERYTHING after it
       '^/api(/.*)?$': {
-        target: 'http://13.203.18.82:8090', // External IP target
+        target: 'http://192.168.1.22:8090', // External IP target
         changeOrigin: true,
         secure: false,
         agent: noKeepAliveAgent,
@@ -45,7 +45,7 @@ export default defineConfig({
           // Force Identity encoding so backend calculates Content-Length 
           // instead of using 'Transfer-Encoding: chunked' which it is corrupting
           proxyReq.setHeader('accept-encoding', 'identity')
-          console.log(`[PROXY REQ] ${req.method} ${req.url} → http://13.203.18.82:8090`);
+          console.log(`[PROXY REQ] ${req.method} ${req.url} → http://192.168.1.22:8090`);
         },
         onProxyRes: (proxyRes, req, res) => {
           console.log(`[PROXY RES] ${req.url} → ${proxyRes.statusCode}`);
@@ -58,10 +58,20 @@ export default defineConfig({
       },
       // Keep /uploads/** proxy in case any image src uses /uploads/
       '^/uploads': {
-        target: 'http://13.203.18.82:8090',
+        target: 'http://192.168.1.22:8090',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/uploads/, '/api/uploads'),
+        rewrite: (p) => {
+          // Fully decode multi-encoded URLs (e.g. %2525252F → /) then re-encode once
+          let decoded = p.replace(/^\/uploads/, '');
+          let prev;
+          do { prev = decoded; try { decoded = decodeURIComponent(decoded); } catch(e) { break; } } while (decoded !== prev);
+          const segments = decoded.replace(/^\/+/, '').split('/');
+          const reEncoded = segments.map(s => encodeURIComponent(s)).join('/');
+          
+          // Re-adding /uploads since backend serves at /uploads/ directly as per your previous instruction
+          return `/uploads/${reEncoded}`;
+        },
         onProxyReq: (proxyReq, req, res) => {
           console.log(`[PROXY UPLOADS REQ] ${req.method} ${req.url}`);
         },

@@ -10,9 +10,8 @@ const API_BASE_URL = import.meta.env.DEV ? '/api' : rawBaseUrl;
 const FILE_HOST = (() => {
     const env = import.meta.env.VITE_FILE_BASE_URL;
     if (env) return env.replace(/\/$/, '');
-    // Default to /api/uploads — matches the Spring Boot static resource mapping
-    // and the Vite proxy rule: /uploads/** → backend /api/uploads/**
-    return '/api/uploads';
+    // Default to /uploads — matches the user's backend configuration
+    return '/uploads';
 })();
 
 /**

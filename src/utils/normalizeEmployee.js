@@ -148,8 +148,8 @@ export const normalizeInternshipRecord = (raw) => {
         companyName: raw.company_name || raw.companyName || "",
         startDate: formatDate(raw.start_date || raw.startDate),
         endDate: formatDate(raw.end_date || raw.endDate),
-        offerLetterPath: raw.offer_letter_file_path || raw.offerLetterPath || null,
-        experienceCertificatePath: raw.experience_certificate_file_path || raw.experienceCertificatePath || null
+        offerLetterPath: scavengePath(raw, 'offer_letter_file_path', 'offerLetterPath'),
+        experienceCertificatePath: scavengePath(raw, 'experience_certificate_file_path', 'experienceCertificatePath')
     };
 };
 
@@ -165,10 +165,10 @@ export const normalizeWorkExperienceRecord = (raw) => {
         startDate: formatDate(raw.start_date || raw.startDate),
         endDate: formatDate(raw.end_date || raw.endDate),
         ctc: raw.ctc || "",
-        offerLetterPath: raw.offer_letter_file_path || raw.offerLetterPath || null,
-        relievingLetterPath: raw.relieving_letter_file_path || raw.relievingLetterPath || null,
-        payslipsPath: raw.payslips_file_path || raw.payslipsPath || null,
-        experienceCertificatePath: raw.experience_certificate_file_path || raw.experienceCertificatePath || null
+        offerLetterPath: scavengePath(raw, 'offer_letter_file_path', 'offerLetterPath'),
+        relievingLetterPath: scavengePath(raw, 'relieving_letter_file_path', 'relievingLetterPath'),
+        payslipsPath: scavengePath(raw, 'payslips_file_path', 'payslipsPath'),
+        experienceCertificatePath: scavengePath(raw, 'experience_certificate_file_path', 'experienceCertificatePath')
     };
 };
 
@@ -181,7 +181,7 @@ export const normalizeProofRecord = (raw) => {
         ...raw,
         proofType: raw.proof_type || raw.proofType || raw.type || "",
         idNumber: raw.id_number || raw.idNumber || raw.panNumber || raw.aadhaarNumber || "",
-        filePath: raw.file_path || raw.filePath || null
+        filePath: scavengePath(raw, 'file_path', 'filePath')
     };
 };
 
@@ -278,8 +278,26 @@ export const normalizeEmployee = (rawEmp) => {
         ssc: normalizeEducationRecord(scavengeValue(emp, 'ssc', 'education.ssc') || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'SSC') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'SSC')),
         intermediate: normalizeEducationRecord(scavengeValue(emp, 'intermediate', 'education.intermediate') || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'INTERMEDIATE') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'INTERMEDIATE')),
         graduation: normalizeEducationRecord(scavengeValue(emp, 'graduation', 'education.graduation') || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'GRADUATION') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'GRADUATION')),
-        postGraduations: (Array.isArray(emp?.postGraduations) ? emp.postGraduations : (Array.isArray(emp?.education?.postGraduations) ? emp.education.postGraduations : [])).map(normalizeEducationRecord),
-        otherCertificates: Array.isArray(emp?.otherCertificates) ? emp.otherCertificates : (Array.isArray(emp?.education?.otherCertificates) ? emp.education.otherCertificates : []),
+        postGraduations: (() => {
+            const list = Array.isArray(emp?.postGraduations) ? emp.postGraduations : (Array.isArray(emp?.education?.postGraduations) ? emp.education.postGraduations : []);
+            if (list.length > 0) return list.map(normalizeEducationRecord);
+            const eduArr = Array.isArray(emp?.educations) ? emp.educations : (Array.isArray(emp?.educationHistory) ? emp.educationHistory : (Array.isArray(emp?.education) ? emp.education : []));
+            return eduArr.filter(e => (e.education_type || e.educationType) === 'POST_GRADUATION').map(normalizeEducationRecord);
+        })(),
+        otherCertificates: (() => {
+            const list = Array.isArray(emp?.otherCertificates) ? emp.otherCertificates : (Array.isArray(emp?.education?.otherCertificates) ? emp.education.otherCertificates : (Array.isArray(emp?.certifications) ? emp.certifications : []));
+            if (list.length > 0) return list;
+            const eduArr = Array.isArray(emp?.educations) ? emp.educations : (Array.isArray(emp?.educationHistory) ? emp.educationHistory : (Array.isArray(emp?.education) ? emp.education : []));
+            return eduArr.filter(e => {
+                const type = e.education_type || e.educationType;
+                return type && !['SSC', 'INTERMEDIATE', 'GRADUATION', 'POST_GRADUATION'].includes(type);
+            }).map(e => ({
+                id: e.id || null,
+                instituteName: e.institutionName || e.institution_name || e.school || e.college || '',
+                certificateNumber: e.hallTicketNo || e.hallTicketNumber || e.hall_ticket_number || '',
+                certificatePath: e.certificatePath || e.certificateFilePath || e.certificate_file_path || null
+            }));
+        })(),
         internships: (Array.isArray(emp?.internships) ? emp.internships : (Array.isArray(emp?.employee?.internships) ? emp.employee.internships : [])).map(normalizeInternshipRecord),
         workExperiences: (Array.isArray(emp?.workExperiences || emp?.workHistory) ? (emp.workExperiences || emp.workHistory) : (Array.isArray(emp?.employee?.workExperiences) ? emp.employee.workExperiences : [])).map(normalizeWorkExperienceRecord),
         
