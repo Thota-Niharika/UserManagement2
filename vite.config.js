@@ -13,9 +13,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     proxy: {
-      // This RegExp catches /api + EVERYTHING after it
-      '^/api(/.*)?$': {
-        target: 'http://192.168.1.22:8090', // External IP target
+      '/api': {
+        target: 'http://192.168.1.22:8090',
         changeOrigin: true,
         secure: false,
         agent: noKeepAliveAgent,
