@@ -46,6 +46,15 @@ export const safeGet = async (url) => {
 
     if (!data) return null;
 
+    // 🚀 Metadata-Safe Unwrapping: If it's an object with a 'data'/'content' key, merge them
+    // but only for objects, not arrays.
+    if (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+        return { ...data, ...data.data };
+    }
+    if (data.content && typeof data.content === 'object' && !Array.isArray(data.content)) {
+        return { ...data, ...data.content };
+    }
+
     if (data.data) return data.data;
     if (data.content) return data.content;
     if (data.onboarding) return data.onboarding;
@@ -88,6 +97,8 @@ export const safePost = async (url, payload) => {
     return parsed?.data ?? parsed;
   } catch (err) {
     const msg = getErrorMessage(err);
+    console.error(`❌ [FULL BACKEND RESPONSE]:`, JSON.stringify(err.response?.data, null, 2));
+    console.error(`❌ [STATUS]:`, err.response?.status);
     console.error(`❌ [API POST FAILED] ${url}:`, msg);
     throw new Error(msg);
   }
@@ -196,8 +207,9 @@ const ApiService = {
       if (!rawEmp) throw new Error("Employee record not found");
 
       // Extract the payload (handles wrapped data: { data: {...} })
-      const employee = rawEmp.data || rawEmp;
-      const onboarding = rawOnboarding?.data || rawOnboarding;
+      // Preserve root fields (like createdAt) from rawEmp while extracting employee data
+      const employee = (rawEmp.data && typeof rawEmp.data === 'object') ? { ...rawEmp, ...rawEmp.data } : (rawEmp.data || rawEmp);
+      const onboarding = (rawOnboarding?.data && typeof rawOnboarding.data === 'object') ? { ...rawOnboarding, ...rawOnboarding.data } : (rawOnboarding?.data || rawOnboarding);
 
       // 💉 MERGE: Inject onboarding data so normalizer can find it
       const composite = {

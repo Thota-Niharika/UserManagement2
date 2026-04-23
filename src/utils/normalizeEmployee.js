@@ -129,12 +129,12 @@ export const normalizeEducationRecord = (raw) => {
     if (!raw) return null;
     return {
         ...raw,
-        institutionName: raw.institution_name || raw.institutionName || "",
-        passoutYear: raw.passout_year || raw.passoutYear || "",
-        percentageCgpa: raw.percentage || raw.percentageCgpa || "",
-        hallTicketNo: raw.hall_ticket_number || raw.hallTicketNo || "",
-        certificatePath: raw.certificate_file_path || raw.certificatePath || null,
-        marksMemoPath: raw.marks_memo_file_path || raw.marksMemoPath || null
+        institutionName: raw.institutionName || raw.institution_name || raw.school || raw.college || "",
+        passoutYear: raw.passoutYear || raw.passout_year || "",
+        percentageCgpa: raw.percentage || raw.percentageCgpa || raw.percentage_cgpa || "",
+        hallTicketNo: raw.hallTicketNumber || raw.hallTicketNo || raw.hall_ticket_number || "",
+        certificatePath: raw.certificatePath || raw.certificate_file_path || null,
+        marksMemoPath: raw.marksMemoPath || raw.marks_memo_file_path || null
     };
 };
 
@@ -160,15 +160,16 @@ export const normalizeWorkExperienceRecord = (raw) => {
     if (!raw) return null;
     return {
         ...raw,
-        companyName: raw.company_name || raw.companyName || "",
-        jobTitle: raw.job_title || raw.jobTitle || "",
-        startDate: formatDate(raw.start_date || raw.startDate),
-        endDate: formatDate(raw.end_date || raw.endDate),
+        companyName: raw.companyName || raw.company_name || "",
+        jobTitle: raw.jobTitle || raw.job_title || "",
+        startDate: formatDate(raw.startDate || raw.start_date),
+        endDate: formatDate(raw.endDate || raw.end_date),
+        yearsOfExp: raw.yearsOfExperience || raw.yearsOfExp || "",
         ctc: raw.ctc || "",
-        offerLetterPath: scavengePath(raw, 'offer_letter_file_path', 'offerLetterPath'),
-        relievingLetterPath: scavengePath(raw, 'relieving_letter_file_path', 'relievingLetterPath'),
-        payslipsPath: scavengePath(raw, 'payslips_file_path', 'payslipsPath'),
-        experienceCertificatePath: scavengePath(raw, 'experience_certificate_file_path', 'experienceCertificatePath')
+        offerLetterPath: scavengePath(raw, 'offerLetterPath', 'offer_letter_file_path'),
+        relievingLetterPath: scavengePath(raw, 'relievingLetterPath', 'relieving_letter_file_path'),
+        payslipsPath: scavengePath(raw, 'payslipsPath', 'payslips_file_path'),
+        experienceCertificatePath: scavengePath(raw, 'experienceCertificatePath', 'experience_certificate_file_path')
     };
 };
 
@@ -195,7 +196,11 @@ export const normalizeEmployee = (rawEmp) => {
 
     // Step 2: Auto-Pivot for wrapped responses
     if (!emp.fullName && !emp.name && (emp.employee || emp.data || emp.onboarding)) {
-        emp = emp.employee || emp.data || emp.onboarding;
+        const nested = emp.employee || emp.data || emp.onboarding;
+        if (nested && typeof nested === 'object') {
+            // Merge nested data into root to preserve root-level metadata (like createdAt)
+            emp = { ...emp, ...nested };
+        }
     }
 
     // Step 2b: Merge sibling onboarding wrapper to root so nested fields (ssc, internships) become accessible
@@ -236,21 +241,21 @@ export const normalizeEmployee = (rawEmp) => {
         onboardingDate: formatDate(scavengeValue(emp, 'dateOfOnboarding', 'onboardingDate', 'employee.dateOfOnboarding', 'onboarding.onboardingDate')),
         dateOfInterview: formatDate(scavengeValue(emp, 'dateOfInterview', 'interviewDate', 'employee.dateOfInterview')),
         dateOfBirth: formatDate(scavengeValue(emp, 'dateOfBirth', 'dob', 'personal.dateOfBirth', 'employee.dateOfBirth', 'personalDetails.dateOfBirth')),
-        createdAt: emp?.createdAt ? formatDateTime(emp.createdAt) : null,
+        createdAt: formatDateTime(scavengeValue(emp, 'createdAt', 'employee.createdAt', 'onboarding.createdAt', 'metadata.createdAt')),
 
         // Identity
         panNumber: scavengeValue(emp, 'panNumber', 'panProof.panNumber', 'employee.panNumber', 'identityProof.panNumber', 'personal.panNumber') ||
                   findProof(identityProofs, 'PAN')?.panNumber || "",
-        aadharNumber: scavengeValue(emp, 'aadharNumber', 'aadhaarNumber', 'panProof.aadhaarNumber', 'employee.aadhaarNumber', 'identityProof.aadhaarNumber', 'personal.aadharNumber') ||
+        aadharNumber: scavengeValue(emp, 'aadharNumber', 'aadhaarNumber', 'aadharProof.aadhaarNumber', 'panProof.aadhaarNumber', 'employee.aadhaarNumber', 'identityProof.aadhaarNumber', 'personal.aadharNumber') ||
                      findProof(identityProofs, 'AADHAR')?.aadhaarNumber || "",
         
         // Paths
-        photoPath: scavengePath(emp, 'photoPath', 'panProof.photoFilePath', 'personal.photoPath', 'employee.photoPath') || scavengePath(findProof(identityProofs, 'PHOTO'), 'filePath', 'file_path') || null,
-        panPath: scavengePath(emp, 'panPath', 'panProof.panFilePath', 'employee.panPath', 'identityProof.panFilePath') || scavengePath(findProof(identityProofs, 'PAN'), 'filePath', 'file_path') || null,
-        aadharPath: scavengePath(emp, 'aadharPath', 'aadhaarPath', 'panProof.aadhaarFilePath', 'employee.aadharPath', 'identityProof.aadhaarFilePath') || scavengePath(findProof(identityProofs, 'AADHAR'), 'filePath', 'file_path') || null,
-        passbookPath: scavengePath(emp, 'passbookPath', 'bankDetails.documentFilePath', 'employee.bankDetails.documentFilePath', 'bankProof.documentFilePath', 'bankDocumentPath') || scavengePath(emp?.bankDetails, 'filePath', 'file_path') || null,
-        passportPath: scavengePath(emp, 'passportPath', 'panProof.passportFilePath', 'employee.passportPath') || scavengePath(findProof(identityProofs, 'PASSPORT'), 'filePath', 'file_path') || null,
-        voterPath: scavengePath(emp, 'voterPath', 'panProof.voterIdFilePath', 'employee.voterPath', 'voterIdFilePath') || scavengePath(findProof(identityProofs, 'VOTER'), 'filePath', 'file_path') || null,
+        photoPath: scavengePath(emp, 'photoPath', 'photoProof.filePath', 'panProof.photoFilePath', 'personal.photoPath', 'employee.photoPath') || scavengePath(findProof(identityProofs, 'PHOTO'), 'filePath', 'file_path') || null,
+        panPath: scavengePath(emp, 'panPath', 'panProof.filePath', 'panProof.panFilePath', 'employee.panPath', 'identityProof.panFilePath') || scavengePath(findProof(identityProofs, 'PAN'), 'filePath', 'file_path') || null,
+        aadharPath: scavengePath(emp, 'aadharPath', 'aadhaarPath', 'aadharProof.filePath', 'panProof.aadhaarFilePath', 'employee.aadharPath', 'identityProof.aadhaarFilePath') || scavengePath(findProof(identityProofs, 'AADHAR'), 'filePath', 'file_path') || null,
+        passbookPath: scavengePath(emp, 'passbookPath', 'bankDetails.documentFilePath', 'bankDetails.filePath', 'employee.bankDetails.documentFilePath', 'bankProof.documentFilePath', 'bankDocumentPath') || scavengePath(emp?.bankDetails, 'filePath', 'file_path') || null,
+        passportPath: scavengePath(emp, 'passportPath', 'passportProof.filePath', 'panProof.passportFilePath', 'employee.passportPath') || scavengePath(findProof(identityProofs, 'PASSPORT'), 'filePath', 'file_path') || null,
+        voterPath: scavengePath(emp, 'voterPath', 'voterProof.filePath', 'panProof.voterIdFilePath', 'employee.voterPath', 'voterIdFilePath') || scavengePath(findProof(identityProofs, 'VOTER'), 'filePath', 'file_path') || null,
 
         // Personal
         bloodGroup: scavengeValue(emp, 'bloodGroup', 'personal.bloodGroup', 'employee.bloodGroup', 'personalDetails.bloodGroup') ?? "",
@@ -277,7 +282,7 @@ export const normalizeEmployee = (rawEmp) => {
         // Education & Lists
         ssc: normalizeEducationRecord(scavengeValue(emp, 'ssc', 'education.ssc') || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'SSC') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'SSC')),
         intermediate: normalizeEducationRecord(scavengeValue(emp, 'intermediate', 'education.intermediate') || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'INTERMEDIATE') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'INTERMEDIATE')),
-        graduation: normalizeEducationRecord(scavengeValue(emp, 'graduation', 'education.graduation') || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'GRADUATION') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'GRADUATION')),
+        graduation: normalizeEducationRecord(scavengeValue(emp, 'graduation', 'education.graduation') || (Array.isArray(emp?.graduations) ? emp.graduations[0] : null) || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'GRADUATION') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'GRADUATION')),
         postGraduations: (() => {
             const list = Array.isArray(emp?.postGraduations) ? emp.postGraduations : (Array.isArray(emp?.education?.postGraduations) ? emp.education.postGraduations : []);
             if (list.length > 0) return list.map(normalizeEducationRecord);

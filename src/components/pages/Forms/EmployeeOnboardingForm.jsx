@@ -85,6 +85,7 @@ const EmployeeOnboardingForm = () => {
 
         // --- [MANDATE 2] DEEP SCAVENGING MAPPING ---
         setPersonal({
+            employeeCode: scavengeValue(emp, 'employeeCode', 'empCode', 'employeeId', 'empId', 'personal.employeeCode') || '',
             fullName: scavengeValue(emp, 'fullName', 'name', 'personal.fullName', 'employee.fullName', 'personalDetails.fullName') || '',
             phone: scavengeValue(emp, 'phone', 'phoneNumber', 'personal.phoneNumber', 'employee.phone', 'personalDetails.phoneNumber') || '',
             bloodGroup: scavengeValue(emp, 'bloodGroup', 'personal.bloodGroup', 'employee.bloodGroup', 'personalDetails.bloodGroup') || '',
@@ -106,10 +107,10 @@ const EmployeeOnboardingForm = () => {
         });
 
         const mapEdu = (edu) => {
-            if (!edu) return { school: '', htNumber: '', year: '', percentage: '', certificate: null };
+            if (!edu) return { institutionName: '', htNumber: '', year: '', percentage: '', certificate: null };
             return {
                 id: edu.id || null,
-                school: edu.institutionName || edu.school || '',
+                institutionName: edu.institutionName || edu.school || edu.college || '',
                 htNumber: edu.hallTicketNo || edu.htNumber || '',
                 year: edu.passoutYear || edu.year || '',
                 percentage: edu.percentageCgpa || edu.percentage || '',
@@ -154,8 +155,8 @@ const EmployeeOnboardingForm = () => {
         setExperience({
             internships: internships.map(i => ({
                 company: i.companyName || '',
-                joining: i.joiningDate || '',
-                relieving: i.relievingDate || '',
+                joining: formatDate(i.joiningDate) || '',
+                relieving: formatDate(i.relievingDate) || '',
                 id: i.internshipId || i.id || '',
                 duration: i.duration || '',
                 offerLetter: i.offerLetterPath ? { 
@@ -167,7 +168,7 @@ const EmployeeOnboardingForm = () => {
             })),
             workHistory: work.map(w => ({
                 company: w.companyName || '',
-                years: w.yearsOfExp || '',
+                years: w.yearsOfExperience || w.yearsOfExp || '',
                 offerLetter: w.offerLetterPath ? { 
                     name: String(w.offerLetterPath).split('/').pop(), isServerFile: true, path: w.offerLetterPath 
                 } : null,
@@ -246,7 +247,7 @@ const EmployeeOnboardingForm = () => {
             const levels = ['ssc', 'inter', 'grad'];
             for (const level of levels) {
                 const data = education[level];
-                if (!(data.school || data.college)) newErrors[`${level}_college`] = 'Required';
+                if (!data.institutionName) newErrors[`${level}_institutionName`] = 'Required';
                 if (!data.htNumber) newErrors[`${level}_htNumber`] = 'Required';
                 if (!data.year) newErrors[`${level}_year`] = 'Required';
                 if (!data.percentage) newErrors[`${level}_percentage`] = 'Required';
@@ -320,6 +321,7 @@ const EmployeeOnboardingForm = () => {
 
     // --- State ---
     const [personal, setPersonal] = useState({
+        employeeCode: '',
         fullName: '',
         phone: '',
         bloodGroup: '',
@@ -338,9 +340,9 @@ const EmployeeOnboardingForm = () => {
     });
 
     const [education, setEducation] = useState({
-        ssc: { school: '', htNumber: '', year: '', percentage: '', certificate: null, certificatePath: '', marksMemoPath: '' },
-        inter: { college: '', htNumber: '', year: '', percentage: '', certificate: null, certificatePath: '', marksMemoPath: '' },
-        grad: { college: '', htNumber: '', year: '', percentage: '', marksMemo: null, certificate: null, certificatePath: '', marksMemoPath: '' },
+        ssc: { institutionName: '', htNumber: '', year: '', percentage: '', certificate: null, certificatePath: '', marksMemoPath: '' },
+        inter: { institutionName: '', htNumber: '', year: '', percentage: '', certificate: null, certificatePath: '', marksMemoPath: '' },
+        grad: { institutionName: '', htNumber: '', year: '', percentage: '', marksMemo: null, certificate: null, certificatePath: '', marksMemoPath: '' },
         postGrad: [],  // Array of objects
         otherCerts: [], // { institute: '', certNumber: '', certificate: null, certificatePath: '' }
     });
@@ -405,7 +407,7 @@ const EmployeeOnboardingForm = () => {
             ...prev,
             [level]: { ...prev[level], [field]: value }
         }));
-        const errKey = `${level}_${field === 'college' ? 'college' : field}`;
+        const errKey = `${level}_${field}`;
         if (errors[errKey]) {
             setErrors(prev => {
                 const newErrs = { ...prev };
@@ -491,7 +493,7 @@ const EmployeeOnboardingForm = () => {
     const addPostGrad = () => {
         setEducation(prev => ({
             ...prev,
-            postGrad: [...prev.postGrad, { college: '', year: '', percentage: '', certificate: null, certificatePath: '', uploading: false }]
+            postGrad: [...prev.postGrad, { institutionName: '', year: '', percentage: '', certificate: null, certificatePath: '', uploading: false }]
         }));
     };
 
@@ -730,48 +732,50 @@ const EmployeeOnboardingForm = () => {
                 fullName: personal.fullName || '',
                 email: personal.email || '',
                 phoneNumber: personal.phone || '',
-                dateOfBirth: personal.dateOfBirth || '',
-                bloodGroup: personal.bloodGroup || '',
+                dateOfBirth: personal.dateOfBirth || null,
+                bloodGroup: personal.bloodGroup || null,
                 permanentAddress: personal.permAddress || '',
                 presentAddress: personal.presAddress || '',
                 fathersName: personal.fatherName || '',
-                fathersPhone: personal.fatherPhone || '',
+                fathersPhone: personal.fatherPhone || null,
                 mothersName: personal.motherName || '',
-                mothersPhone: personal.motherPhone || '',
+                mothersPhone: personal.motherPhone || null,
                 emergencyContactName: personal.emergencyName || '',
                 emergencyRelationship: personal.emergencyRel || '',
-                emergencyNumber: personal.emergencyPhone || '',
+                emergencyNumber: personal.emergencyPhone || null,
 
                 ssc: {
-                    institutionName: education.ssc.school,
-                    hallTicketNumber: education.ssc.htNumber,
-                    passoutYear: parseInt(education.ssc.year) || null,
-                    percentage: parseFloat(education.ssc.percentage) || null
+                    educationType: 'SSC',
+                    institutionName: education.ssc.institutionName.trim(),
+                    hallTicketNumber: education.ssc.htNumber || '',
+                    passoutYear: education.ssc.year ? parseInt(education.ssc.year) : null,
+                    percentage: education.ssc.percentage ? parseFloat(education.ssc.percentage) : null
                 },
 
                 intermediate: {
-                    institutionName: education.inter.school || education.inter.college,
-                    hallTicketNumber: education.inter.htNumber,
-                    passoutYear: parseInt(education.inter.year) || null,
-                    percentage: parseFloat(education.inter.percentage) || null
+                    educationType: 'INTERMEDIATE',
+                    institutionName: education.inter.institutionName.trim(),
+                    hallTicketNumber: education.inter.htNumber || '',
+                    passoutYear: education.inter.year ? parseInt(education.inter.year) : null,
+                    percentage: education.inter.percentage ? parseFloat(education.inter.percentage) : null
                 },
 
                 graduations: [
                     {
                         educationType: "GRADUATION",
-                        institutionName: education.grad.school || education.grad.college,
-                        hallTicketNumber: education.grad.htNumber,
-                        passoutYear: parseInt(education.grad.year) || null,
-                        percentage: parseFloat(education.grad.percentage) || null
+                        institutionName: education.grad.institutionName.trim(),
+                        hallTicketNumber: education.grad.htNumber || '',
+                        passoutYear: education.grad.year ? parseInt(education.grad.year) : null,
+                        percentage: education.grad.percentage ? parseFloat(education.grad.percentage) : null
                     }
                 ],
 
                 postGraduations: education.postGrad.map(pg => ({
                     educationType: "POST_GRADUATION",
-                    institutionName: pg.school || pg.college,
-                    hallTicketNumber: pg.htNumber || null,
-                    passoutYear: parseInt(pg.year) || null,
-                    percentage: parseFloat(pg.percentage) || null
+                    institutionName: (pg.institutionName || pg.college || pg.school || '').trim(),
+                    hallTicketNumber: pg.htNumber || '',
+                    passoutYear: pg.year ? parseInt(pg.year) : null,
+                    percentage: pg.percentage ? parseFloat(pg.percentage) : null
                 })),
 
                 panProof: {
@@ -791,13 +795,13 @@ const EmployeeOnboardingForm = () => {
                     branchName: bank.branchName || '',
                     accountNumber: bank.accountNumber || '',
                     ifscCode: bank.ifscCode || '',
-                    upiId: bank.upiId || '',
-                    documentType: bank.documentType || 'PASSBOOK'
+                    documentType: bank.documentType || 'PASSBOOK',
+                    upiId: bank.upiId || ''
                 },
 
                 workExperiences: experience.workHistory.map(work => ({
-                    companyName: work.company || null,
-                    yearsOfExperience: parseInt(work.years) || 0
+                    companyName: work.company || '',
+                    yearsOfExperience: work.years ? parseInt(work.years) : 0
                 })),
 
                 internships: experience.internships.map(int => ({
@@ -815,9 +819,8 @@ const EmployeeOnboardingForm = () => {
                 }))
             };
 
-            // 🚀 IMPORTANT: Append as 'data' part (JSON Blob)
-            // Using application/json Blob helps Spring Boot map the @RequestPart correctly
-            formData.append('data', new Blob([JSON.stringify(onboardingData)], { type: 'application/json' }));
+            // 🚀 IMPORTANT: Send as plain string, let Spring Boot handle it
+            formData.append('data', JSON.stringify(onboardingData));
 
             // 2. Append Files separately with specific keys required by backend
             const isNewFile = (f) => f && !f.isServerFile && f instanceof File;
@@ -853,31 +856,30 @@ const EmployeeOnboardingForm = () => {
             if (gradCert) formData.append('grad_certificate_0', gradCert);
             if (gradMarks) formData.append('grad_marks_0', gradMarks);
 
-            const pgFiles = await Promise.all(education.postGrad.map(pg => compress(pg.certificate)));
-            pgFiles.forEach((f, i) => { if (f) formData.append(`postgrad_certificate_${i}`, f); });
+            education.postGrad.forEach((pg, i) => {
+                if (isNewFile(pg.certificate)) {
+                    formData.append(`postgrad_certificate_${i}`, pg.certificate);
+                }
+            });
 
-            const otherCertFiles = await Promise.all(education.otherCerts.map(c => compress(c.certificate)));
-            otherCertFiles.forEach((f, i) => { if (f) formData.append(`certification_${i}`, f); });
+            education.otherCerts.forEach((cert, i) => {
+                if (isNewFile(cert.certificate)) {
+                    formData.append(`certification_${i}`, cert.certificate);
+                }
+            });
 
             // Internship
-            const intOfferFiles = await Promise.all(experience.internships.map(int => compress(int.offerLetter)));
-            const intRelievingFiles = await Promise.all(experience.internships.map(int => compress(int.relievingLetter)));
-            experience.internships.forEach((_, i) => {
-                if (intOfferFiles[i]) formData.append(`internship_offer_${i}`, intOfferFiles[i]);
-                if (intRelievingFiles[i]) formData.append(`internship_certificate_${i}`, intRelievingFiles[i]);
+            experience.internships.forEach((int, i) => {
+                if (isNewFile(int.offerLetter)) formData.append(`internship_offer_${i}`, int.offerLetter);
+                if (isNewFile(int.relievingLetter)) formData.append(`internship_certificate_${i}`, int.relievingLetter);
             });
 
             // Work Experience
-            const workOfferFiles = await Promise.all(experience.workHistory.map(w => compress(w.offerLetter)));
-            const workRelievingFiles = await Promise.all(experience.workHistory.map(w => compress(w.relievingLetter)));
-            const workPayslipFiles = await Promise.all(experience.workHistory.map(w => compress(w.payslips)));
-            const workExpFiles = await Promise.all(experience.workHistory.map(w => compress(w.experienceCert)));
-            
-            experience.workHistory.forEach((_, i) => {
-                if (workOfferFiles[i]) formData.append(`experience_offer_${i}`, workOfferFiles[i]);
-                if (workRelievingFiles[i]) formData.append(`experience_reliev_${i}`, workRelievingFiles[i]);
-                if (workPayslipFiles[i]) formData.append(`experience_payslip_${i}`, workPayslipFiles[i]);
-                if (workExpFiles[i]) formData.append(`experience_certificate_${i}`, workExpFiles[i]);
+            experience.workHistory.forEach((work, i) => {
+                if (isNewFile(work.offerLetter)) formData.append(`experience_offer_${i}`, work.offerLetter);
+                if (isNewFile(work.relievingLetter)) formData.append(`experience_reliev_${i}`, work.relievingLetter);
+                if (isNewFile(work.payslips)) formData.append(`experience_payslip_${i}`, work.payslips);
+                if (isNewFile(work.experienceCert)) formData.append(`experience_certificate_${i}`, work.experienceCert);
             });
 
             // Bank
@@ -934,6 +936,11 @@ const EmployeeOnboardingForm = () => {
                     {step === 1 && (
                         <div className="form-section animate-fade-in">
                             <h2>Personal Details</h2>
+                            {personal.employeeCode && (
+                                <div className="row">
+                                    <Input label="Employee Code" name="employeeCode" val={personal.employeeCode} disabled />
+                                </div>
+                            )}
                             <div className="row">
                                 <Input label="Full Name (as per Aadhar)" name="fullName" val={personal.fullName} fn={handlePersonalChange} req error={errors.fullName} rejected={isFieldRejected('fullName')} />
                                 <Input label="Phone Number" name="phone" val={personal.phone} fn={handlePersonalChange} req type="tel" error={errors.phone} rejected={isFieldRejected('phone')} />
@@ -1021,7 +1028,7 @@ const EmployeeOnboardingForm = () => {
                                     <div key={i} className="dynamic-card">
                                         <button type="button" className="btn-del" onClick={() => removePostGrad(i)}><Trash2 size={16} /></button>
                                         <div className="row">
-                                            <Input label="College Name" val={pg.college} fn={(e) => updatePostGrad(i, 'college', e.target.value)} />
+                                            <Input label="College Name" val={pg.institutionName || ''} fn={(e) => updatePostGrad(i, 'institutionName', e.target.value)} />
                                             <Input label="Year" val={pg.year} fn={(e) => updatePostGrad(i, 'year', e.target.value)} />
                                         </div>
                                         <div className="row">
@@ -1456,6 +1463,13 @@ const EmployeeOnboardingForm = () => {
                     margin-bottom: 0px;
                 }
 
+                .form-input:disabled {
+                    background-color: #f1f3f4;
+                    color: #5f6368;
+                    cursor: not-allowed;
+                    border-color: #e0e0e0;
+                }
+
                 .file-upload-box {
                     border: 1px dashed #dadce0;
                     padding: 1rem;
@@ -1722,8 +1736,8 @@ const EmployeeOnboardingForm = () => {
     );
 };
 
-const Input = ({ label, name, val, fn, req, type = "text", error, rejected }) => (
-    <div className={`input-group ${error || rejected ? 'error' : ''}`}>
+const Input = ({ label, name, val, fn, req, type = "text", error, rejected, disabled }) => (
+    <div className={`input-group ${error || rejected ? 'error' : ''} ${disabled ? 'disabled' : ''}`}>
         <label>
             {label} {req && <span style={{ color: 'red' }}>*</span>}
             {rejected && <span className="rejected-badge">Rejected</span>}
@@ -1734,6 +1748,7 @@ const Input = ({ label, name, val, fn, req, type = "text", error, rejected }) =>
             value={val || ''}
             onChange={fn}
             required={req}
+            disabled={disabled}
             className={`form-input ${error || rejected ? 'error' : ''}`}
         />
         {error && <span className="error-msg">{error}</span>}
@@ -1776,10 +1791,10 @@ const EducationBlock = ({ title, data, onChange, hasMarskMemo, schoolLabel = "Sc
             <div className="row">
                 <Input
                     label={schoolLabel}
-                    val={data.school || data.college}
-                    fn={(e) => onChange('college', e.target.value)}
+                    val={data.institutionName || ''}
+                    fn={(e) => onChange('institutionName', e.target.value)}
                     req={req}
-                    error={errors[`${levelKey}_college`]}
+                    error={errors[`${levelKey}_institutionName`]}
                 />
                 <Input
                     label="Hall Ticket No."
