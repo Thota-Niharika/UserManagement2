@@ -194,33 +194,26 @@ const ApiService = {
   },
   getEmployeeDetail: async (id) => {
     try {
-      // 🚀 COMPOSITE FETCH: Get core record AND onboarding details
-      // Promise.allSettled ensures if onboarding is missing (404), the profile still shows basic info.
-      const [empRes, onboardingRes] = await Promise.allSettled([
-        api.get(`/employees/${id}`),
-        api.get(`/onboarding/${id}`)
-      ]);
-
-      const rawEmp = empRes.status === 'fulfilled' ? empRes.value.data : null;
-      const rawOnboarding = onboardingRes.status === 'fulfilled' ? onboardingRes.value.data : null;
+      // ✅ GET /api/employees/{id} returns a COMPLETE flat response that already contains:
+      //    bloodGroup, addresses, bankDetails, educations, certifications,
+      //    internships, workExperiences, photoPath, panPath, aadhaarPath, etc.
+      //
+      // ⚠️  DO NOT call /api/onboarding/{id} here — that endpoint uses the
+      //    onboarding FORM'S own auto-increment ID, NOT the employee ID.
+      //    e.g. employee id=8 (Raghava) but onboarding form id=8 belongs to
+      //    a DIFFERENT employee (Niharika), causing wrong data to be merged.
+      const res = await api.get(`/employees/${id}`);
+      const rawEmp = res.data;
 
       if (!rawEmp) throw new Error("Employee record not found");
 
-      // Extract the payload (handles wrapped data: { data: {...} })
-      // Preserve root fields (like createdAt) from rawEmp while extracting employee data
-      const employee = (rawEmp.data && typeof rawEmp.data === 'object') ? { ...rawEmp, ...rawEmp.data } : (rawEmp.data || rawEmp);
-      const onboarding = (rawOnboarding?.data && typeof rawOnboarding.data === 'object') ? { ...rawOnboarding, ...rawOnboarding.data } : (rawOnboarding?.data || rawOnboarding);
+      // Unwrap { data: {...} } wrapper if present
+      const employee = (rawEmp.data && typeof rawEmp.data === 'object')
+        ? { ...rawEmp, ...rawEmp.data }
+        : (rawEmp.data || rawEmp);
 
-      // 💉 MERGE: Inject onboarding data so normalizer can find it
-      const composite = {
-        ...employee,
-        onboardingForm: onboarding || employee.onboardingForm || null,
-        // Fallback for direct field access
-        ...(onboarding || {})
-      };
-
-      console.log("🧩 [COMPOSITE PROFILE] Merged Data:", composite);
-      return normalizeEmployee(composite);
+      console.log("🧩 [EMPLOYEE DETAIL] Raw flat data:", employee);
+      return normalizeEmployee(employee);
     } catch (err) {
       console.error("❌ Failed to fetch complete profile:", err);
       throw err;

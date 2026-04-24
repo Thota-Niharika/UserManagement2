@@ -133,8 +133,9 @@ export const normalizeEducationRecord = (raw) => {
         passoutYear: raw.passoutYear || raw.passout_year || "",
         percentageCgpa: raw.percentage || raw.percentageCgpa || raw.percentage_cgpa || "",
         hallTicketNo: raw.hallTicketNumber || raw.hallTicketNo || raw.hall_ticket_number || "",
-        certificatePath: raw.certificatePath || raw.certificate_file_path || null,
-        marksMemoPath: raw.marksMemoPath || raw.marks_memo_file_path || null
+        // Backend uses certificateFilePath, marksMemoFilePath (not certificatePath / marksMemoPath)
+        certificatePath: raw.certificatePath || raw.certificateFilePath || raw.certificate_file_path || null,
+        marksMemoPath: raw.marksMemoPath || raw.marksMemoFilePath || raw.marks_memo_file_path || null
     };
 };
 
@@ -175,6 +176,11 @@ export const normalizeWorkExperienceRecord = (raw) => {
 
 /**
  * Maps DB snake_case fields for Identity Proofs to frontend camelCase.
+ *
+ * The backend stores all identity docs in ONE record per employee with
+ * separate typed path fields (photoFilePath, panFilePath, aadhaarFilePath, etc.).
+ * We expand that combined record into individual typed proof objects so the
+ * rest of the UI can work with them uniformly.
  */
 export const normalizeProofRecord = (raw) => {
     if (!raw) return null;
@@ -182,8 +188,42 @@ export const normalizeProofRecord = (raw) => {
         ...raw,
         proofType: raw.proof_type || raw.proofType || raw.type || "",
         idNumber: raw.id_number || raw.idNumber || raw.panNumber || raw.aadhaarNumber || "",
-        filePath: scavengePath(raw, 'file_path', 'filePath')
+        // Support both legacy filePath AND the new per-type path fields
+        filePath: scavengePath(raw, 'file_path', 'filePath') ||
+                  scavengePath(raw, 'photoFilePath', 'panFilePath', 'aadhaarFilePath') || null
     };
+};
+
+/**
+ * Expands the backend's single combined identity proof record into
+ * individual typed proof objects understood by getProof() in the UI.
+ * e.g. { panFilePath, aadhaarFilePath, photoFilePath } →
+ *      [{ proofType:'PAN', filePath:... }, { proofType:'AADHAR', filePath:... }, ...]
+ */
+const expandIdentityProofs = (proofs) => {
+    if (!Array.isArray(proofs) || proofs.length === 0) return [];
+
+    const combined = proofs[0]; // Backend always returns exactly one object
+
+    // If it already has a proofType field it's the old per-type format — leave as-is
+    if (combined.proofType || combined.type || combined.proof_type) {
+        return proofs.map(normalizeProofRecord);
+    }
+
+    // New format: single object with per-type path fields
+    const expanded = [];
+    const tryAdd = (proofType, filePath, idNumber) => {
+        const p = scavengePath(combined, filePath);
+        if (p) expanded.push({ ...combined, proofType, filePath: p, idNumber: idNumber || '' });
+    };
+
+    tryAdd('PHOTO',    'photoFilePath',    '');
+    tryAdd('PAN',      'panFilePath',       combined.panNumber || '');
+    tryAdd('AADHAR',   'aadhaarFilePath',   combined.aadhaarNumber || '');
+    tryAdd('PASSPORT', 'passportFilePath',  '');
+    tryAdd('VOTER',    'voterIdFilePath',   '');
+
+    return expanded.length > 0 ? expanded : proofs.map(normalizeProofRecord);
 };
 
 // ─── MAIN NORMALIZER ─────────────────────────────────────────────
@@ -211,17 +251,33 @@ export const normalizeEmployee = (rawEmp) => {
         emp = { ...emp.onboarding, ...emp };
     }
 
-    // Step 3: Identity Discovery (Array of proofs)
-    const identityProofs = Array.isArray(emp?.identityProofs) ? emp.identityProofs : 
-                          (Array.isArray(emp?.employee?.identityProofs) ? emp.employee.identityProofs : []);
+    // Step 3: Identity Discovery
+    // Raw proofs come from the merged onboardingForm — grab BEFORE safeCopy strips onboardingForm
+    const rawOnboardingForm = rawEmp?.onboardingForm || null;
+    const rawIdentityProofs = Array.isArray(rawOnboardingForm?.identityProofs)
+        ? rawOnboardingForm.identityProofs
+        : (Array.isArray(emp?.identityProofs) ? emp.identityProofs
+          : (Array.isArray(emp?.employee?.identityProofs) ? emp.employee.identityProofs : []));
+
+    // Raw bank details (inside onboardingForm, stripped by safeCopy)
+    const rawBank = rawOnboardingForm?.bankDetails || emp?.bankDetails || emp?.employee?.bankDetails || null;
+
+    // Expand the combined backend record into individual typed proof objects
+    const identityProofs = expandIdentityProofs(rawIdentityProofs);
+
+    // Shortcut: first identity record (the combined one) for direct field access
+    const idProof0 = (Array.isArray(rawIdentityProofs) && rawIdentityProofs[0]) ? rawIdentityProofs[0] : null;
 
     // Step 4: Map fields via Scavenging
     const res = {
         // Basic Info
         id: (emp?.id || emp?.employeeId) ?? null,
         employeeId: (emp?.id || emp?.employeeId) ?? null,
-        empId: emp?.empId ?? "",
-        empCode: scavengeValue(emp, 'empCode', 'employeeCode', 'employee.empCode', 'employee.employeeCode') ?? "",
+        // Backend generates the code in 'empId' field (e.g. "FIS0226IT00001")
+        empId: scavengeValue(emp, 'empId', 'employee.empId', 'onboarding.empId') || "",
+        // empCode aliases empId so all UI components (table, modals, profile) show it correctly
+        empCode: scavengeValue(emp, 'empCode', 'employeeCode', 'employee.empCode', 'employee.employeeCode')
+               || scavengeValue(emp, 'empId', 'employee.empId') || "",
         name: scavengeValue(emp, 'fullName', 'name', 'personal.fullName', 'employee.fullName', 'personalDetails.fullName') ?? "Unknown",
         email: scavengeValue(emp, 'email', 'personal.email', 'employee.email', 'personalDetails.email') ?? "",
         phone: scavengeValue(emp, 'phone', 'phoneNumber', 'personal.phoneNumber', 'employee.phone', 'personalDetails.phoneNumber') ?? "",
@@ -243,56 +299,80 @@ export const normalizeEmployee = (rawEmp) => {
         dateOfBirth: formatDate(scavengeValue(emp, 'dateOfBirth', 'dob', 'personal.dateOfBirth', 'employee.dateOfBirth', 'personalDetails.dateOfBirth')),
         createdAt: formatDateTime(scavengeValue(emp, 'createdAt', 'employee.createdAt', 'onboarding.createdAt', 'metadata.createdAt')),
 
-        // Identity
-        panNumber: scavengeValue(emp, 'panNumber', 'panProof.panNumber', 'employee.panNumber', 'identityProof.panNumber', 'personal.panNumber') ||
-                  findProof(identityProofs, 'PAN')?.panNumber || "",
-        aadharNumber: scavengeValue(emp, 'aadharNumber', 'aadhaarNumber', 'aadharProof.aadhaarNumber', 'panProof.aadhaarNumber', 'employee.aadhaarNumber', 'identityProof.aadhaarNumber', 'personal.aadharNumber') ||
-                     findProof(identityProofs, 'AADHAR')?.aadhaarNumber || "",
-        
-        // Paths
-        photoPath: scavengePath(emp, 'photoPath', 'photoProof.filePath', 'panProof.photoFilePath', 'personal.photoPath', 'employee.photoPath') || scavengePath(findProof(identityProofs, 'PHOTO'), 'filePath', 'file_path') || null,
-        panPath: scavengePath(emp, 'panPath', 'panProof.filePath', 'panProof.panFilePath', 'employee.panPath', 'identityProof.panFilePath') || scavengePath(findProof(identityProofs, 'PAN'), 'filePath', 'file_path') || null,
-        aadharPath: scavengePath(emp, 'aadharPath', 'aadhaarPath', 'aadharProof.filePath', 'panProof.aadhaarFilePath', 'employee.aadharPath', 'identityProof.aadhaarFilePath') || scavengePath(findProof(identityProofs, 'AADHAR'), 'filePath', 'file_path') || null,
-        passbookPath: scavengePath(emp, 'passbookPath', 'bankDetails.documentFilePath', 'bankDetails.filePath', 'employee.bankDetails.documentFilePath', 'bankProof.documentFilePath', 'bankDocumentPath') || scavengePath(emp?.bankDetails, 'filePath', 'file_path') || null,
-        passportPath: scavengePath(emp, 'passportPath', 'passportProof.filePath', 'panProof.passportFilePath', 'employee.passportPath') || scavengePath(findProof(identityProofs, 'PASSPORT'), 'filePath', 'file_path') || null,
-        voterPath: scavengePath(emp, 'voterPath', 'voterProof.filePath', 'panProof.voterIdFilePath', 'employee.voterPath', 'voterIdFilePath') || scavengePath(findProof(identityProofs, 'VOTER'), 'filePath', 'file_path') || null,
+        // Identity Numbers
+        panNumber: scavengeValue(idProof0, 'panNumber') ||
+                  scavengeValue(emp, 'panNumber', 'panProof.panNumber', 'employee.panNumber', 'identityProof.panNumber', 'personal.panNumber') ||
+                  findProof(identityProofs, 'PAN')?.idNumber || "",
+        aadharNumber: scavengeValue(idProof0, 'aadhaarNumber', 'aadharNumber') ||
+                     scavengeValue(emp, 'aadharNumber', 'aadhaarNumber', 'aadharProof.aadhaarNumber', 'panProof.aadhaarNumber', 'employee.aadhaarNumber', 'identityProof.aadhaarNumber', 'personal.aadharNumber') ||
+                     findProof(identityProofs, 'AADHAR')?.idNumber || "",
 
-        // Personal
-        bloodGroup: scavengeValue(emp, 'bloodGroup', 'personal.bloodGroup', 'employee.bloodGroup', 'personalDetails.bloodGroup') ?? "",
-        fathersName: scavengeValue(emp, 'fathersName', 'fatherName', 'personal.fathersName', 'employee.fathersName', 'personalDetails.fathersName') ?? "",
-        fathersPhone: scavengeValue(emp, 'fathersPhone', 'fatherPhone', 'personal.fathersPhone', 'employee.fathersPhone', 'personalDetails.fathersPhone') ?? "",
-        mothersName: scavengeValue(emp, 'mothersName', 'motherName', 'personal.mothersName', 'employee.mothersName', 'personalDetails.mothersName') ?? "",
-        mothersPhone: scavengeValue(emp, 'mothersPhone', 'motherPhone', 'personal.mothersPhone', 'employee.mothersPhone', 'personalDetails.mothersPhone') ?? "",
-        emergencyContactName: scavengeValue(emp, 'emergencyContactName', 'emergencyName', 'personal.emergencyContactName', 'employee.emergencyContactName') ?? "",
-        emergencyRelationship: scavengeValue(emp, 'emergencyRelationship', 'emergencyRel', 'personal.emergencyRelationship', 'employee.emergencyRelationship') ?? "",
-        emergencyNumber: scavengeValue(emp, 'emergencyNumber', 'emergencyPhone', 'personal.emergencyNumber', 'employee.emergencyNumber') ?? "",
+        // File Paths — first try the direct backend fields in idProof0, then fall back to scavenging
+        photoPath:    scavengePath(idProof0, 'photoFilePath')    || scavengePath(emp, 'photoPath', 'photoProof.filePath', 'personal.photoPath', 'employee.photoPath') || scavengePath(findProof(identityProofs, 'PHOTO'),    'filePath') || null,
+        panPath:      scavengePath(idProof0, 'panFilePath')      || scavengePath(emp, 'panPath', 'panProof.filePath', 'panProof.panFilePath', 'employee.panPath') || scavengePath(findProof(identityProofs, 'PAN'),     'filePath') || null,
+        aadharPath:   scavengePath(idProof0, 'aadhaarFilePath')  || scavengePath(emp, 'aadharPath', 'aadhaarPath', 'aadharProof.filePath', 'employee.aadharPath') || scavengePath(findProof(identityProofs, 'AADHAR'),  'filePath') || null,
+        passbookPath: scavengePath(rawBank, 'documentFilePath', 'filePath') || scavengePath(emp, 'passbookPath', 'bankDetails.documentFilePath', 'bankDetails.filePath', 'employee.bankDetails.documentFilePath', 'bankProof.documentFilePath', 'bankDocumentPath') || null,
+        passportPath: scavengePath(idProof0, 'passportFilePath') || scavengePath(emp, 'passportPath', 'passportProof.filePath', 'employee.passportPath') || scavengePath(findProof(identityProofs, 'PASSPORT'), 'filePath') || null,
+        voterPath:    scavengePath(idProof0, 'voterIdFilePath')  || scavengePath(emp, 'voterPath', 'voterProof.filePath', 'employee.voterPath', 'voterIdFilePath') || scavengePath(findProof(identityProofs, 'VOTER'),    'filePath') || null,
 
-        // Bank
-        bankName: scavengeValue(emp, 'bankName', 'bankDetails.bankName', 'employee.bankDetails.bankName') ?? "",
-        branchName: scavengeValue(emp, 'branchName', 'bankDetails.branchName', 'employee.bankDetails.branchName') ?? "",
-        ifscCode: scavengeValue(emp, 'ifscCode', 'bankDetails.ifscCode', 'employee.bankDetails.ifscCode') ?? "",
-        accountNumber: scavengeValue(emp, 'accountNumber', 'bankDetails.accountNumber', 'employee.bankDetails.accountNumber') ?? "",
-        upiId: scavengeValue(emp, 'upiId', 'bankDetails.upiId', 'employee.bankDetails.upiId') ?? "",
-        bankProof: emp?.bankProof ?? emp?.bankDetails ?? emp?.employee?.bankDetails ?? null,
+        // Personal — also check rawOnboardingForm since safeCopy strips it
+        bloodGroup: scavengeValue(rawOnboardingForm, 'bloodGroup') || scavengeValue(emp, 'bloodGroup', 'personal.bloodGroup', 'employee.bloodGroup', 'personalDetails.bloodGroup') || "",
+        fathersName: scavengeValue(rawOnboardingForm, 'fatherName', 'fathersName') || scavengeValue(emp, 'fathersName', 'fatherName', 'personal.fathersName', 'employee.fathersName') || "",
+        fathersPhone: scavengeValue(rawOnboardingForm, 'fatherPhone', 'fathersPhone') || scavengeValue(emp, 'fathersPhone', 'fatherPhone', 'personal.fathersPhone', 'employee.fathersPhone') || "",
+        mothersName: scavengeValue(rawOnboardingForm, 'motherName', 'mothersName') || scavengeValue(emp, 'mothersName', 'motherName', 'personal.mothersName', 'employee.mothersName') || "",
+        mothersPhone: scavengeValue(rawOnboardingForm, 'motherPhone', 'mothersPhone') || scavengeValue(emp, 'mothersPhone', 'motherPhone', 'personal.mothersPhone', 'employee.mothersPhone') || "",
+        emergencyContactName: scavengeValue(rawOnboardingForm, 'emergencyContactName') || scavengeValue(emp, 'emergencyContactName', 'emergencyName', 'personal.emergencyContactName', 'employee.emergencyContactName') || "",
+        emergencyRelationship: scavengeValue(rawOnboardingForm, 'emergencyRelationship') || scavengeValue(emp, 'emergencyRelationship', 'emergencyRel', 'personal.emergencyRelationship', 'employee.emergencyRelationship') || "",
+        emergencyNumber: scavengeValue(rawOnboardingForm, 'emergencyContactNumber', 'emergencyNumber') || scavengeValue(emp, 'emergencyNumber', 'emergencyPhone', 'personal.emergencyNumber', 'employee.emergencyNumber') || "",
 
-        // Address
-        presentAddress: scavengeValue(emp, 'presentAddress', 'presAddress', 'personal.presentAddress', 'employee.presentAddress') ?? "",
-        permanentAddress: scavengeValue(emp, 'permanentAddress', 'permAddress', 'personal.permanentAddress', 'employee.permanentAddress') ?? "",
+        // Bank — use rawBank extracted directly from rawOnboardingForm.bankDetails
+        bankName:      scavengeValue(rawBank, 'bankName')      || scavengeValue(emp, 'bankName', 'bankDetails.bankName', 'employee.bankDetails.bankName')      || "",
+        branchName:    scavengeValue(rawBank, 'branchName')    || scavengeValue(emp, 'branchName', 'bankDetails.branchName', 'employee.bankDetails.branchName')  || "",
+        ifscCode:      scavengeValue(rawBank, 'ifscCode')      || scavengeValue(emp, 'ifscCode', 'bankDetails.ifscCode', 'employee.bankDetails.ifscCode')        || "",
+        accountNumber: scavengeValue(rawBank, 'accountNumber') || scavengeValue(emp, 'accountNumber', 'bankDetails.accountNumber', 'employee.bankDetails.accountNumber') || "",
+        upiId:         scavengeValue(rawBank, 'upiId')         || scavengeValue(emp, 'upiId', 'bankDetails.upiId', 'employee.bankDetails.upiId')                 || "",
+        bankProof: rawBank || emp?.bankProof || emp?.employee?.bankDetails || null,
 
-        // Education & Lists
-        ssc: normalizeEducationRecord(scavengeValue(emp, 'ssc', 'education.ssc') || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'SSC') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'SSC')),
-        intermediate: normalizeEducationRecord(scavengeValue(emp, 'intermediate', 'education.intermediate') || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'INTERMEDIATE') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'INTERMEDIATE')),
-        graduation: normalizeEducationRecord(scavengeValue(emp, 'graduation', 'education.graduation') || (Array.isArray(emp?.graduations) ? emp.graduations[0] : null) || findInArray(emp?.educations || emp?.educationHistory, 'education_type', 'GRADUATION') || findInArray(emp?.educations || emp?.educationHistory, 'educationType', 'GRADUATION')),
+        // Address — also check rawOnboardingForm
+        presentAddress:   scavengeValue(rawOnboardingForm, 'presentAddress')   || scavengeValue(emp, 'presentAddress', 'presAddress', 'personal.presentAddress', 'employee.presentAddress')     || "",
+        permanentAddress: scavengeValue(rawOnboardingForm, 'permanentAddress') || scavengeValue(emp, 'permanentAddress', 'permAddress', 'personal.permanentAddress', 'employee.permanentAddress') || "",
+
+        // Education & Lists — always prefer rawOnboardingForm.educations (safeCopy strips it)
+        ssc: normalizeEducationRecord(
+            scavengeValue(emp, 'ssc', 'education.ssc') ||
+            findInArray(rawOnboardingForm?.educations || emp?.educations || emp?.educationHistory, 'educationType', 'SSC') ||
+            findInArray(rawOnboardingForm?.educations || emp?.educations || emp?.educationHistory, 'education_type', 'SSC')
+        ),
+        intermediate: normalizeEducationRecord(
+            scavengeValue(emp, 'intermediate', 'education.intermediate') ||
+            findInArray(rawOnboardingForm?.educations || emp?.educations || emp?.educationHistory, 'educationType', 'INTERMEDIATE') ||
+            findInArray(rawOnboardingForm?.educations || emp?.educations || emp?.educationHistory, 'education_type', 'INTERMEDIATE')
+        ),
+        graduation: normalizeEducationRecord(
+            scavengeValue(emp, 'graduation', 'education.graduation') ||
+            findInArray(rawOnboardingForm?.educations || emp?.educations || emp?.educationHistory, 'educationType', 'GRADUATION') ||
+            findInArray(rawOnboardingForm?.educations || emp?.educations || emp?.educationHistory, 'education_type', 'GRADUATION') ||
+            (Array.isArray(emp?.graduations) ? emp.graduations[0] : null)
+        ),
         postGraduations: (() => {
             const list = Array.isArray(emp?.postGraduations) ? emp.postGraduations : (Array.isArray(emp?.education?.postGraduations) ? emp.education.postGraduations : []);
             if (list.length > 0) return list.map(normalizeEducationRecord);
-            const eduArr = Array.isArray(emp?.educations) ? emp.educations : (Array.isArray(emp?.educationHistory) ? emp.educationHistory : (Array.isArray(emp?.education) ? emp.education : []));
+            const eduArr = rawOnboardingForm?.educations || emp?.educations || emp?.educationHistory || emp?.education || [];
+            if (!Array.isArray(eduArr)) return [];
             return eduArr.filter(e => (e.education_type || e.educationType) === 'POST_GRADUATION').map(normalizeEducationRecord);
         })(),
         otherCertificates: (() => {
-            const list = Array.isArray(emp?.otherCertificates) ? emp.otherCertificates : (Array.isArray(emp?.education?.otherCertificates) ? emp.education.otherCertificates : (Array.isArray(emp?.certifications) ? emp.certifications : []));
-            if (list.length > 0) return list;
-            const eduArr = Array.isArray(emp?.educations) ? emp.educations : (Array.isArray(emp?.educationHistory) ? emp.educationHistory : (Array.isArray(emp?.education) ? emp.education : []));
+            // Backend uses 'certifications' as the array key
+            const certSrc = Array.isArray(rawOnboardingForm?.certifications) ? rawOnboardingForm.certifications : null;
+            const list = certSrc || (Array.isArray(emp?.otherCertificates) ? emp.otherCertificates : (Array.isArray(emp?.education?.otherCertificates) ? emp.education.otherCertificates : (Array.isArray(emp?.certifications) ? emp.certifications : [])));
+            if (list.length > 0) return list.map(c => ({
+                ...c,
+                instituteName: c.instituteName || c.institution_name || '',
+                certificateNumber: c.certificateNumber || '',
+                certificatePath: c.certificatePath || c.certificateFilePath || c.certificate_file_path || null
+            }));
+            const eduArr = rawOnboardingForm?.educations || emp?.educations || emp?.educationHistory || emp?.education || [];
+            if (!Array.isArray(eduArr)) return [];
             return eduArr.filter(e => {
                 const type = e.education_type || e.educationType;
                 return type && !['SSC', 'INTERMEDIATE', 'GRADUATION', 'POST_GRADUATION'].includes(type);
@@ -303,20 +383,31 @@ export const normalizeEmployee = (rawEmp) => {
                 certificatePath: e.certificatePath || e.certificateFilePath || e.certificate_file_path || null
             }));
         })(),
-        internships: (Array.isArray(emp?.internships) ? emp.internships : (Array.isArray(emp?.employee?.internships) ? emp.employee.internships : [])).map(normalizeInternshipRecord),
-        workExperiences: (Array.isArray(emp?.workExperiences || emp?.workHistory) ? (emp.workExperiences || emp.workHistory) : (Array.isArray(emp?.employee?.workExperiences) ? emp.employee.workExperiences : [])).map(normalizeWorkExperienceRecord),
-        
-        // Metadata
+        // Backend uses 'experiences' for work experience records
+        internships: (() => {
+            const src = Array.isArray(rawOnboardingForm?.internships) ? rawOnboardingForm.internships
+                      : (Array.isArray(emp?.internships) ? emp.internships
+                        : (Array.isArray(emp?.employee?.internships) ? emp.employee.internships : []));
+            return src.map(normalizeInternshipRecord);
+        })(),
+        workExperiences: (() => {
+            const src = Array.isArray(rawOnboardingForm?.experiences) ? rawOnboardingForm.experiences
+                      : (Array.isArray(emp?.workExperiences) ? emp.workExperiences
+                        : (Array.isArray(emp?.workHistory) ? emp.workHistory
+                          : (Array.isArray(emp?.experiences) ? emp.experiences
+                            : (Array.isArray(emp?.employee?.workExperiences) ? emp.employee.workExperiences : []))));
+            return src.map(normalizeWorkExperienceRecord);
+        })(),
+
+        // Metadata — compute counts AFTER resolving the arrays above
         identityProofs: identityProofs.map(normalizeProofRecord),
-        educationCount: Number(emp?.educationCount ?? (
-            (emp?.ssc || emp?.education?.ssc ? 1 : 0) + 
-            (emp?.intermediate || emp?.education?.intermediate ? 1 : 0) + 
-            (emp?.graduation || emp?.education?.graduation ? 1 : 0) +
-            (Array.isArray(emp?.postGraduations) ? emp.postGraduations.length : 0)
-        )),
-        internshipCount: Number(emp?.internshipCount ?? (Array.isArray(emp?.internships) ? emp.internships.length : 0)),
-        workExperienceCount: Number(emp?.workExperienceCount ?? (Array.isArray(emp?.workExperiences || emp?.workHistory) ? (emp.workExperiences || emp.workHistory).length : 0)),
-        identityProofCount: Number(emp?.identityProofCount ?? identityProofs.length),
+        get educationCount() {
+            return (this.ssc ? 1 : 0) + (this.intermediate ? 1 : 0) + (this.graduation ? 1 : 0) +
+                   (this.postGraduations?.length || 0);
+        },
+        get internshipCount() { return this.internships?.length || 0; },
+        get workExperienceCount() { return this.workExperiences?.length || 0; },
+        identityProofCount: identityProofs.length,
         dept: (emp?.deptCode || (typeof emp?.dept === 'object' ? emp?.dept?.deptCode : emp?.dept)) ?? "",
         role: (emp?.roleCode || (typeof emp?.role === 'object' ? emp?.role?.roleCode : emp?.role)) ?? "",
         entity: (emp?.entityCode || (typeof emp?.entity === 'object' ? emp?.entity?.entityCode : emp?.entity)) ?? "",

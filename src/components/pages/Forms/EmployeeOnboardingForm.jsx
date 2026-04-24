@@ -85,7 +85,6 @@ const EmployeeOnboardingForm = () => {
 
         // --- [MANDATE 2] DEEP SCAVENGING MAPPING ---
         setPersonal({
-            employeeCode: scavengeValue(emp, 'employeeCode', 'empCode', 'employeeId', 'empId', 'personal.employeeCode') || '',
             fullName: scavengeValue(emp, 'fullName', 'name', 'personal.fullName', 'employee.fullName', 'personalDetails.fullName') || '',
             phone: scavengeValue(emp, 'phone', 'phoneNumber', 'personal.phoneNumber', 'employee.phone', 'personalDetails.phoneNumber') || '',
             bloodGroup: scavengeValue(emp, 'bloodGroup', 'personal.bloodGroup', 'employee.bloodGroup', 'personalDetails.bloodGroup') || '',
@@ -243,6 +242,19 @@ const EmployeeOnboardingForm = () => {
                     newErrors[field] = 'This field is required';
                 }
             }
+            // Phone number length checks
+            if (personal.phone && personal.phone.replace(/\D/g, '').length !== 10) {
+                newErrors['phone'] = 'Phone number must be exactly 10 digits';
+            }
+            if (personal.fatherPhone && personal.fatherPhone.replace(/\D/g, '').length > 10) {
+                newErrors['fatherPhone'] = 'Father\'s phone must be at most 10 digits';
+            }
+            if (personal.motherPhone && personal.motherPhone.replace(/\D/g, '').length > 10) {
+                newErrors['motherPhone'] = 'Mother\'s phone must be at most 10 digits';
+            }
+            if (personal.emergencyPhone && personal.emergencyPhone.replace(/\D/g, '').length !== 10) {
+                newErrors['emergencyPhone'] = 'Emergency phone must be exactly 10 digits';
+            }
         } else if (currentStep === 2) {
             const levels = ['ssc', 'inter', 'grad'];
             for (const level of levels) {
@@ -274,6 +286,8 @@ const EmployeeOnboardingForm = () => {
 
             if (!cleanPan) {
                 newErrors['panNumber'] = 'Required';
+            } else if (cleanPan.length !== 10) {
+                newErrors['panNumber'] = 'PAN must be exactly 10 characters';
             } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
                 newErrors['panNumber'] = 'Invalid PAN format (e.g. ABCDE1234F)';
             }
@@ -281,6 +295,8 @@ const EmployeeOnboardingForm = () => {
 
             if (!cleanAadhar) {
                 newErrors['aadharNumber'] = 'Required';
+            } else if (cleanAadhar.length !== 12) {
+                newErrors['aadharNumber'] = `Aadhaar must be exactly 12 digits (you entered ${cleanAadhar.length})`;
             } else if (!/^[0-9]{12}$/.test(cleanAadhar)) {
                 newErrors['aadharNumber'] = 'Aadhaar must be exactly 12 digits';
             }
@@ -321,7 +337,6 @@ const EmployeeOnboardingForm = () => {
 
     // --- State ---
     const [personal, setPersonal] = useState({
-        employeeCode: '',
         fullName: '',
         phone: '',
         bloodGroup: '',
@@ -392,6 +407,12 @@ const EmployeeOnboardingForm = () => {
 
     const handlePersonalChange = (e) => {
         const { name, value } = e.target;
+        // Enforce max-length limits on digit-only phone fields
+        const phoneFields = ['phone', 'fatherPhone', 'motherPhone', 'emergencyPhone'];
+        if (phoneFields.includes(name)) {
+            const digitsOnly = value.replace(/\D/g, '');
+            if (digitsOnly.length > 10) return; // Block input beyond 10 digits
+        }
         setPersonal(prev => ({ ...prev, [name]: value }));
         if (errors[name]) {
             setErrors(prev => {
@@ -476,8 +497,10 @@ const EmployeeOnboardingForm = () => {
         let cleanedValue = value;
         if (name === 'panNumber') {
             cleanedValue = value.replace(/\s+/g, '').toUpperCase();
+            if (cleanedValue.length > 10) return; // Block beyond 10 chars
         } else if (name === 'aadharNumber') {
             cleanedValue = value.replace(/\s+/g, '');
+            if (cleanedValue.length > 12) return; // Block beyond 12 digits
         }
         setDocuments(prev => ({ ...prev, [name]: cleanedValue }));
         if (errors[name]) {
@@ -936,11 +959,6 @@ const EmployeeOnboardingForm = () => {
                     {step === 1 && (
                         <div className="form-section animate-fade-in">
                             <h2>Personal Details</h2>
-                            {personal.employeeCode && (
-                                <div className="row">
-                                    <Input label="Employee Code" name="employeeCode" val={personal.employeeCode} disabled />
-                                </div>
-                            )}
                             <div className="row">
                                 <Input label="Full Name (as per Aadhar)" name="fullName" val={personal.fullName} fn={handlePersonalChange} req error={errors.fullName} rejected={isFieldRejected('fullName')} />
                                 <Input label="Phone Number" name="phone" val={personal.phone} fn={handlePersonalChange} req type="tel" error={errors.phone} rejected={isFieldRejected('phone')} />
@@ -1463,13 +1481,6 @@ const EmployeeOnboardingForm = () => {
                     margin-bottom: 0px;
                 }
 
-                .form-input:disabled {
-                    background-color: #f1f3f4;
-                    color: #5f6368;
-                    cursor: not-allowed;
-                    border-color: #e0e0e0;
-                }
-
                 .file-upload-box {
                     border: 1px dashed #dadce0;
                     padding: 1rem;
@@ -1736,8 +1747,8 @@ const EmployeeOnboardingForm = () => {
     );
 };
 
-const Input = ({ label, name, val, fn, req, type = "text", error, rejected, disabled }) => (
-    <div className={`input-group ${error || rejected ? 'error' : ''} ${disabled ? 'disabled' : ''}`}>
+const Input = ({ label, name, val, fn, req, type = "text", error, rejected }) => (
+    <div className={`input-group ${error || rejected ? 'error' : ''}`}>
         <label>
             {label} {req && <span style={{ color: 'red' }}>*</span>}
             {rejected && <span className="rejected-badge">Rejected</span>}
@@ -1748,7 +1759,6 @@ const Input = ({ label, name, val, fn, req, type = "text", error, rejected, disa
             value={val || ''}
             onChange={fn}
             required={req}
-            disabled={disabled}
             className={`form-input ${error || rejected ? 'error' : ''}`}
         />
         {error && <span className="error-msg">{error}</span>}
