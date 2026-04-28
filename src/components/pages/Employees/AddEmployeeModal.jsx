@@ -15,12 +15,12 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
         status: 'ONBOARDING'
     });
 
-    const normalizePhone = (num) => num.replace(/\s/g, '').replace(/-/g, '');
+    const normalizePhone = (num) => (num || '').replace(/\D/g, '');
 
     const normalizedPhone = normalizePhone(formData.phone);
     const existingEmail = employees.find(emp => emp.email?.toLowerCase() === formData.email.toLowerCase());
     const existingPhone = employees.find(emp => {
-        const empPhone = emp.phone ? normalizePhone(emp.phone) : '';
+        const empPhone = normalizePhone(emp.phone);
         return empPhone === normalizedPhone && normalizedPhone !== '';
     });
 
@@ -54,6 +54,11 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [], roles = []
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(formData.email)) {
             alert('Please enter a valid email address.');
+            return;
+        }
+
+        if (normalizedPhone.length !== 10) {
+            alert(`Phone number must be exactly 10 digits. You entered ${normalizedPhone.length} digits.`);
             return;
         }
 
