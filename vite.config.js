@@ -3,9 +3,10 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 import http from 'http'
+import https from 'https'
 
 // Disable keep-alive to fix: "Parse Error: Expected LF after chunk data"
-const noKeepAliveAgent = new http.Agent({ keepAlive: false })
+const noKeepAliveAgent = new https.Agent({ keepAlive: false })
 
 export default defineConfig({
   plugins: [react()],
