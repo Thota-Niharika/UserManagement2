@@ -34,7 +34,16 @@ const extractFilename = (pathOrObj) => {
     // Normalize separators and strip Windows drive letter
     raw = raw.replace(/\\/g, '/').replace(/^[A-Za-z]:\//, '');
 
+    // --- CLOUDINARY / EXTERNAL URL PROTECTION ---
+    // If it's already a full external URL (like Cloudinary), return it as-is.
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        if (raw.includes('cloudinary.com')) return raw;
+        // Also if it doesn't look like it's pointing to our own localhost/uploads, keep it
+        if (!raw.includes('/uploads/')) return raw;
+    }
+
     // Strip full URL prefix (everything up to /api/ or /uploads/)
+    // only if it looks like it belongs to a server we want to proxy
     raw = raw.replace(/^https?:\/\/[^/]+/, '');
 
     // Remove common path prefixes
@@ -54,7 +63,11 @@ const extractFilename = (pathOrObj) => {
 export const buildFileUrl = (pathOrObj) => {
     const filename = extractFilename(pathOrObj);
     if (!filename) return '/no-image.png';
-    if (filename.startsWith('data:') || filename.startsWith('blob:')) return filename;
+    
+    // If it's already a full URL (Cloudinary, etc.) or a data/blob URL, return as-is
+    if (filename.startsWith('http') || filename.startsWith('data:') || filename.startsWith('blob:')) {
+        return filename;
+    }
 
     const encoded = filename.split('/').map(seg => encodeURIComponent(seg)).join('/');
     return `${FILE_HOST}/${encoded}`;
