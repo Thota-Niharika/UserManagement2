@@ -122,6 +122,12 @@ export const parseIfString = (data) => {
         console.error('❌ [API] Recovery attempt threw:', recoveryErr.message);
     }
 
+    // If it's a short string and clearly not JSON (doesn't start with { or [), return as is.
+    const trimmed = data.trim();
+    if (trimmed.length > 0 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+        return data;
+    }
+
     console.error(`❌ [API] Response could not be recovered. Returning empty array to prevent crash.`);
     return [];
 };
