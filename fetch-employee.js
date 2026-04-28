@@ -1,7 +1,7 @@
 import fs from 'fs';
 import axios from 'axios';
 
-axios.get('http://192.168.1.7:8090/api/employees')
+axios.get('https://usermanagement-ofsl.onrender.com/api/employees')
     .then(r => {
         const list = r.data.data || r.data.content || r.data;
         list.forEach(emp => {
