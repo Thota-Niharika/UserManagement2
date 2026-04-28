@@ -479,40 +479,40 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                         <div className="info-section">
                             <h3 className="section-title">Uploaded Documents</h3>
                             <div className="doc-viewer-grid">
-                                {renderDocCard(`${emp.bankDocumentType?.replace('_', ' ') || 'Bank Document'}`, { filePath: emp.documentFilePath || emp.passbookPath, entityType: 'BANK_DETAILS', id: emp.id }, "passbook")}
-                                {emp.ssc && renderDocCard("SSC Certificate", { ...emp.ssc, filePath: emp.ssc.certificatePath, entityType: 'EDUCATION', id: emp.ssc.id }, "ssc_certificate")}
-                                {/* {emp.ssc?.marksMemoPath && renderDocCard("SSC Marks Memo", { ...emp.ssc, filePath: emp.ssc.marksMemoPath, entityType: 'EDUCATION', id: emp.ssc.id }, "ssc_marks")} */}
-                                {emp.intermediate && renderDocCard("Inter Certificate", { ...emp.intermediate, filePath: emp.intermediate.certificatePath, entityType: 'EDUCATION', id: emp.intermediate.id }, "inter_certificate")}
-                                {/* {emp.intermediate?.marksMemoPath && renderDocCard("Inter Marks Memo", { ...emp.intermediate, filePath: emp.intermediate.marksMemoPath, entityType: 'EDUCATION', id: emp.intermediate.id }, "inter_marks")} */}
-                                {emp.graduation && renderDocCard("Grad Certificate", { ...emp.graduation, filePath: emp.graduation.certificatePath, entityType: 'EDUCATION', id: emp.graduation.id }, "grad_certificate")}
-                                {emp.graduation?.marksMemoPath && renderDocCard("Grad Marks Memo", { ...emp.graduation, filePath: emp.graduation.marksMemoPath, entityType: 'EDUCATION', id: emp.graduation.id }, "grad_marks")}
+                                {renderDocCard(`${emp.bankDocumentType?.replace('_', ' ') || 'Bank Document'}`, { filePath: emp.documentFilePath || emp.passbookPath, entityType: 'bank', id: emp.id }, "passbook")}
+                                {emp.ssc && renderDocCard("SSC Certificate", { ...emp.ssc, filePath: emp.ssc.certificatePath, entityType: 'education', id: emp.ssc.id }, "ssc_certificate")}
+                                {/* {emp.ssc?.marksMemoPath && renderDocCard("SSC Marks Memo", { ...emp.ssc, filePath: emp.ssc.marksMemoPath, entityType: 'education', id: emp.ssc.id }, "ssc_marks")} */}
+                                {emp.intermediate && renderDocCard("Inter Certificate", { ...emp.intermediate, filePath: emp.intermediate.certificatePath, entityType: 'education', id: emp.intermediate.id }, "inter_certificate")}
+                                {/* {emp.intermediate?.marksMemoPath && renderDocCard("Inter Marks Memo", { ...emp.intermediate, filePath: emp.intermediate.marksMemoPath, entityType: 'education', id: emp.intermediate.id }, "inter_marks")} */}
+                                {emp.graduation && renderDocCard("Grad Certificate", { ...emp.graduation, filePath: emp.graduation.certificatePath, entityType: 'education', id: emp.graduation.id }, "grad_certificate")}
+                                {emp.graduation?.marksMemoPath && renderDocCard("Grad Marks Memo", { ...emp.graduation, filePath: emp.graduation.marksMemoPath, entityType: 'education', id: emp.graduation.id }, "grad_marks")}
 
                                 {/* Identity Proofs — checks identityProofs array (both .type and .proofType) + named proof fields */}
                                 {(() => {
                                     const proofType = 'PAN';
                                     const panProof = getProof(proofType) || { filePath: emp.panPath };
                                     if (!panProof.filePath) return null;
-                                    return renderDocCard(`PAN Card (${emp.panNumber || '-'})`, panProof, "pan");
+                                    return renderDocCard(`PAN Card (${emp.panNumber || '-'})`, { ...panProof, entityType: 'proof' }, "pan");
                                 })()}
                                 {(() => {
                                     const aadharProof = getProof('AADHAR') || { filePath: emp.aadharPath };
                                     if (!aadharProof.filePath) return null;
-                                    return renderDocCard(`Aadhar Card (${emp.aadharNumber || '-'})`, aadharProof, "aadhar");
+                                    return renderDocCard(`Aadhar Card (${emp.aadharNumber || '-'})`, { ...aadharProof, entityType: 'proof' }, "aadhar");
                                 })()}
                                 {(() => {
                                     const photoProof = getProof('PHOTO') || { filePath: emp.photoPath };
                                     if (!photoProof.filePath) return null;
-                                    return renderDocCard("Passport Photo", photoProof, "photo");
+                                    return renderDocCard("Passport Photo", { ...photoProof, entityType: 'proof' }, "photo");
                                 })()}
                                 {(() => {
                                     const passportProof = getProof('PASSPORT') || { filePath: emp.passportPath };
                                     if (!passportProof.filePath) return null;
-                                    return renderDocCard("Passport Document", passportProof, "passport");
+                                    return renderDocCard("Passport Document", { ...passportProof, entityType: 'proof' }, "passport");
                                 })()}
                                 {(() => {
                                     const voterProof = getProof('VOTER') || { filePath: emp.voterPath };
                                     if (!voterProof.filePath) return null;
-                                    return renderDocCard("Voter ID Card", voterProof, "voter");
+                                    return renderDocCard("Voter ID Card", { ...voterProof, entityType: 'proof' }, "voter");
                                 })()}
 
                                 {/* Render any other identity proofs not already shown */}
@@ -521,7 +521,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                     if (['PAN', 'AADHAR', 'VOTER', 'PHOTO', 'PASSPORT'].includes(type)) return null;
                                     return (
                                         <React.Fragment key={`extra-proof-${i}`}>
-                                            {renderDocCard(`${proof.type || proof.proofType || 'Extra Proof'} (${i + 1})`, proof, `extra_proof_${i}`)}
+                                            {renderDocCard(`${proof.type || proof.proofType || 'Extra Proof'} (${i + 1})`, { ...proof, entityType: 'proof' }, `extra_proof_${i}`)}
                                         </React.Fragment>
                                     );
                                 })}
@@ -529,27 +529,27 @@ const ViewEmployeeModal = ({ isOpen, onClose, employee, onApprove, onRejectDocum
                                 {/* Dynamic Lists */}
                                 {emp.postGraduations && emp.postGraduations.map((pg, i) => (
                                     <React.Fragment key={`pg-${i}`}>
-                                        {pg.certificatePath && renderDocCard(`Post-Grad Cert (${i + 1})`, { ...pg, filePath: pg.certificatePath, entityType: 'POST_GRADUATION', id: pg.id || i }, `post_grad_file_${i}`)}
-                                        {pg.marksMemoPath && renderDocCard(`Post-Grad Marks (${i + 1})`, { ...pg, filePath: pg.marksMemoPath, entityType: 'POST_GRADUATION', id: pg.id || i }, `post_grad_marks_file_${i}`)}
+                                        {pg.certificatePath && renderDocCard(`Post-Grad Cert (${i + 1})`, { ...pg, filePath: pg.certificatePath, entityType: 'education', id: pg.id || i }, `post_grad_file_${i}`)}
+                                        {pg.marksMemoPath && renderDocCard(`Post-Grad Marks (${i + 1})`, { ...pg, filePath: pg.marksMemoPath, entityType: 'education', id: pg.id || i }, `post_grad_marks_file_${i}`)}
                                     </React.Fragment>
                                 ))}
                                 {emp.otherCertificates && emp.otherCertificates.map((cert, i) => (
                                     <React.Fragment key={`other-${i}`}>
-                                        {renderDocCard(`Cert: ${cert.certificateNumber || 'Record ' + (i + 1)}`, { ...cert, filePath: cert.certificatePath, entityType: 'CERTIFICATION', id: cert.certificateId || cert.id || i }, `otherCertificates[${i}].certificatePath`)}
+                                        {renderDocCard(`Cert: ${cert.certificateNumber || 'Record ' + (i + 1)}`, { ...cert, filePath: cert.certificatePath, entityType: 'certification', id: cert.certificateId || cert.id || i }, `otherCertificates[${i}].certificatePath`)}
                                     </React.Fragment>
                                 ))}
                                 {emp.internships && emp.internships.map((int, i) => (
                                     <React.Fragment key={`int-${i}`}>
-                                        {int.offerLetterPath && renderDocCard(`Intern Offer (${int.companyName})`, { ...int, filePath: int.offerLetterPath, entityType: 'INTERNSHIP', id: int.internshipId || int.id || i }, `internship_offer_file_${i}`)}
-                                        {int.experienceCertificatePath && renderDocCard(`Intern Cert (${int.companyName})`, { ...int, filePath: int.experienceCertificatePath, entityType: 'INTERNSHIP', id: int.internshipId || int.id || i }, `internship_cert_file_${i}`)}
+                                        {int.offerLetterPath && renderDocCard(`Intern Offer (${int.companyName})`, { ...int, filePath: int.offerLetterPath, entityType: 'internship', id: int.internshipId || int.id || i }, `internship_offer_file_${i}`)}
+                                        {int.experienceCertificatePath && renderDocCard(`Intern Cert (${int.companyName})`, { ...int, filePath: int.experienceCertificatePath, entityType: 'internship', id: int.internshipId || int.id || i }, `internship_cert_file_${i}`)}
                                     </React.Fragment>
                                 ))}
                                 {emp.workExperiences && emp.workExperiences.map((work, i) => (
                                     <React.Fragment key={`exp-${i}`}>
-                                        {work.offerLetterPath && renderDocCard(`Work Offer (${work.companyName})`, { ...work, filePath: work.offerLetterPath, entityType: 'WORK_EXPERIENCE', id: work.workExperienceId || work.id || i }, `work_offer_file_${i}`)}
-                                        {work.relievingLetterPath && renderDocCard(`Relieving Letter (${work.companyName})`, { ...work, filePath: work.relievingLetterPath, entityType: 'WORK_EXPERIENCE', id: work.workExperienceId || work.id || i }, `work_relieving_file_${i}`)}
-                                        {work.payslipsPath && renderDocCard(`Payslips (${work.companyName})`, { ...work, filePath: work.payslipsPath, entityType: 'WORK_EXPERIENCE', id: work.workExperienceId || work.id || i }, `work_payslips_file_${i}`)}
-                                        {work.experienceCertificatePath && renderDocCard(`Exp Cert (${work.companyName})`, { ...work, filePath: work.experienceCertificatePath, entityType: 'WORK_EXPERIENCE', id: work.workExperienceId || work.id || i }, `work_exp_cert_file_${i}`)}
+                                        {work.offerLetterPath && renderDocCard(`Work Offer (${work.companyName})`, { ...work, filePath: work.offerLetterPath, entityType: 'work', id: work.workExperienceId || work.id || i }, `work_offer_file_${i}`)}
+                                        {work.relievingLetterPath && renderDocCard(`Relieving Letter (${work.companyName})`, { ...work, filePath: work.relievingLetterPath, entityType: 'work', id: work.workExperienceId || work.id || i }, `work_relieving_file_${i}`)}
+                                        {work.payslipsPath && renderDocCard(`Payslips (${work.companyName})`, { ...work, filePath: work.payslipsPath, entityType: 'work', id: work.workExperienceId || work.id || i }, `work_payslips_file_${i}`)}
+                                        {work.experienceCertificatePath && renderDocCard(`Exp Cert (${work.companyName})`, { ...work, filePath: work.experienceCertificatePath, entityType: 'work', id: work.workExperienceId || work.id || i }, `work_exp_cert_file_${i}`)}
                                     </React.Fragment>
                                 ))}
                             </div>

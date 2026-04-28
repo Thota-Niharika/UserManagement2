@@ -399,7 +399,9 @@ const EmployeeOnboardingForm = () => {
     const isFieldRejected = (fieldName) => {
         if (!rejectedFields || rejectedFields.length === 0) return false;
         return rejectedFields.some(rf => {
-            const pattern = rf.toLowerCase();
+            // Support both simple strings and objects like { image_name: "..." }
+            const rejectName = (typeof rf === 'object' ? (rf.image_name || rf.fieldName) : rf) || '';
+            const pattern = rejectName.toLowerCase();
             const field = fieldName.toLowerCase();
             return field.includes(pattern) || pattern.includes(field);
         });
