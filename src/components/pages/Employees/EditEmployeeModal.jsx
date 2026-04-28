@@ -61,6 +61,9 @@ const EditEmployeeModal = ({ isOpen, onClose, onUpdate, employee, departments = 
         }
     }, [employee, departments, roles, entities]);
 
+    const normalizePhone = (num) => (num || '').replace(/\D/g, '');
+    const normalizedPhone = normalizePhone(formData.phone);
+
     if (!isOpen || !employee) return null;
 
     const handleSubmit = (e) => {
@@ -71,7 +74,15 @@ const EditEmployeeModal = ({ isOpen, onClose, onUpdate, employee, departments = 
             return;
         }
 
-        onUpdate(formData);
+        if (normalizedPhone.length !== 10) {
+            alert(`Phone number must be exactly 10 digits. You entered ${normalizedPhone.length} digits.`);
+            return;
+        }
+
+        onUpdate({
+            ...formData,
+            phone: normalizedPhone
+        });
         onClose();
     };
 
