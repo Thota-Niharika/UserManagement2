@@ -302,8 +302,8 @@ const ApiService = {
   },
 
   getOnboardingDetail: (id) => safeGet(`/onboarding/${id}`),
-  rejectOnboardingDocument: (employeeId, entityType, entityId) => {
-    return safePost('/onboarding/reject-document', { employeeId, entityType, entityId });
+  rejectOnboardingDocument: (employeeId, entityType, entityId, remarks) => {
+    return safePost('/onboarding/reject-document', { employeeId, entityType, entityId, remarks });
   },
 
   // --- VENDORS ---
