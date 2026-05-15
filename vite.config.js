@@ -15,7 +15,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://13.218.250.186:8080',
+        target: 'http://13.218.250.186',
         changeOrigin: true,
         secure: false,
         agent: noKeepAliveAgent,
@@ -45,7 +45,7 @@ export default defineConfig({
           // Force Identity encoding so backend calculates Content-Length 
           // instead of using 'Transfer-Encoding: chunked' which it is corrupting
           proxyReq.setHeader('accept-encoding', 'identity')
-          console.log(`[PROXY REQ] ${req.method} ${req.url} → http://13.218.250.186:8080`);
+          console.log(`[PROXY REQ] ${req.method} ${req.url} → http://13.218.250.186`);
         },
         onProxyRes: (proxyRes, req, res) => {
           console.log(`[PROXY RES] ${req.url} → ${proxyRes.statusCode}`);
@@ -58,7 +58,7 @@ export default defineConfig({
       },
       // Keep /uploads/** proxy in case any image src uses /uploads/
       '^/uploads': {
-        target: 'http://13.218.250.186:8080',
+        target: 'http://13.218.250.186',
         changeOrigin: true,
         secure: false,
         rewrite: (p) => {
