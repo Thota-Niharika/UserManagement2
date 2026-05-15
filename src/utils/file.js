@@ -4,8 +4,8 @@ import { API_BASE_URL as rawBaseUrl } from '../config/api';
 const API_BASE_URL = import.meta.env.DEV ? '/api' : rawBaseUrl;
 
 // The base URL for serving uploaded files.
-// If your backend serves files at /api/uploads/ set:  VITE_FILE_BASE_URL=http://13.203.18.82:8090/api/uploads
-// If it serves at /uploads/ set:                      VITE_FILE_BASE_URL=http://13.203.18.82:8090/uploads
+// If your backend serves files at /api/uploads/ set:  VITE_FILE_BASE_URL=http://13.218.250.186:8080/api/uploads
+// If it serves at /uploads/ set:                      VITE_FILE_BASE_URL=http://13.218.250.186:8080/uploads
 // Defaults to the same host as the API + /files/
 const FILE_HOST = (() => {
     const env = import.meta.env.VITE_FILE_BASE_URL;
@@ -76,7 +76,7 @@ export const buildFileUrl = (pathOrObj) => {
 /**
  * Builds an ABSOLUTE URL for opening files in a new tab.
  * Relative URLs break in new tabs because the SPA router intercepts them.
- * This always returns the full backend URL (e.g. http://13.203.18.82:8090/api/files/filename.jpg)
+ * This always returns the full backend URL (e.g. http://13.218.250.186:8080/api/files/filename.jpg)
  */
 export const buildAbsoluteFileUrl = (pathOrObj) => {
     const filename = extractFilename(pathOrObj);
